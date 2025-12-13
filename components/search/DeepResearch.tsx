@@ -137,36 +137,60 @@ const DeepResearch: React.FC = () => {
 
 ${fullPrompt}
 
+CRITICAL QUALITY REQUIREMENTS:
+- ONLY cite papers/sources that actually exist - do NOT fabricate references
+- Include COMPLETE citation info: Author(s), Year, Full Title, Journal/Venue, DOI/URL
+- Mark confidence: ✓ Verified (real paper), ⚠ Needs validation (uncertain if exists)
+- If you cannot verify a source exists, clearly state this
+- Distinguish: Established facts vs Emerging research vs Theoretical proposals
+
 INSTRUCTIONS:
-1. Identify and synthesize 15-30 relevant peer-reviewed sources from academic databases (arXiv, SSRN, PubMed, IEEE, Google Scholar, etc.)
-2. Create an annotated bibliography table with columns: Source, Key Finding, Relevance Score (1-100), Evidence Quality (1-10)
-3. Assign a "Relevance Score" (1-100) based on direct applicability to the research question
-4. Organize sources into 3-5 thematic categories relevant to the research topic
-5. Include DOIs or identifiers where possible
-6. Distinguish foundational/seminal works from recent contributions
+1. Search across: arXiv, SSRN, PubMed, IEEE, Google Scholar, Semantic Scholar
+2. Identify 15-30 relevant peer-reviewed sources (prioritize 2020-2025 publications)
+3. Create annotated bibliography with COMPLETE citation data
+4. Assign Relevance Score (1-100) and Evidence Quality (1-10) with justification
+5. Organize into 3-5 thematic categories
+6. Include DOIs for all sources where available
 
 FORMAT YOUR OUTPUT AS:
 ## Literature Discovery & Synthesis
 
-### Search Strategy
-[Describe databases searched, query terms used, and selection criteria]
+### Research Methodology
+**Databases Searched:** [List specific databases]
+**Search Terms:** [Exact query terms used]
+**Inclusion Criteria:** Peer-reviewed papers, 2018-2025, English language
+**Quality Threshold:** Citation count > 5 or tier-1 venue publication
 
 ### Thematic Categories
-[List 3-5 categories you've identified]
+[List 3-5 categories with brief descriptions]
 
 ### Annotated Bibliography
-| Source | Key Finding | Relevance | Quality |
-|--------|-------------|-----------|---------|
-[Fill table with 15-30 sources organized by category]
+
+#### Category 1: [Name]
+| # | Citation (APA Format) | Key Finding | Relevance | Quality | Confidence |
+|---|----------------------|-------------|-----------|---------|------------|
+| 1 | Author, A. (Year). *Full Title*. Journal, Vol(Issue), pp. DOI:xxx | [Finding] | [1-100] | [1-10] | ✓/⚠ |
+
+[Repeat for each category with 4-8 sources each]
 
 ### Top 5 Most Relevant Sources
-[List top 5 sources by Relevance Score with brief justification]
+| Rank | Full Citation | Why It's Critical | DOI/URL |
+|------|---------------|-------------------|---------|
 
 ### Key Themes Identified
-[Summarize 4-6 major themes emerging from the literature]
+[4-6 major themes with supporting evidence counts]
 
 ### Research Gaps & Opportunities
-[Identify what's missing or underexplored in the literature]`,
+[Specific gaps identified with confidence assessment]
+
+### Verification Notes
+⚠ **Sources Requiring Validation:** [List any uncertain sources]
+✓ **High-Confidence Sources:** [List verified sources with DOIs]
+
+### Limitations of This Review
+- Scope: [What was included/excluded]
+- Potential biases: [Language, date range, database coverage]
+- Confidence level: [High/Medium/Low] based on source verification rate`,
 
             taxonomy: `You are executing Phase 2: Conceptual Framework & Mapping for the following research task:
 
@@ -310,52 +334,78 @@ ${researchPrompt}
 ALL PREVIOUS PHASE OUTPUTS:
 ${previousOutputs.join('\\n\\n---\\n\\n')}
 
-INSTRUCTIONS:
-1. Compile all findings into a coherent executive summary
-2. Synthesize 5-7 key insights across all phases
-3. Provide actionable recommendations for different stakeholders
-4. Structure as a professional report with clear sections
-5. Include summary tables where appropriate
+CRITICAL QUALITY REQUIREMENTS:
+- Synthesize ONLY verified findings from previous phases
+- Include confidence levels for ALL recommendations
+- Acknowledge limitations and uncertainties explicitly
+- Provide clear action items with feasibility assessment
+- Create professional report suitable for decision-makers
+- Include AI-generation disclosure
 
 FORMAT YOUR OUTPUT AS:
 ## Executive Summary
-[One-paragraph answer to the central research question]
+
+**Research Question:** [Restated clearly]
+**Answer:** [One-paragraph evidence-based answer]
+**Overall Confidence:** [High/Medium/Low] based on [X verified sources, Y% high-quality evidence]
 
 **Key Takeaways:**
-- Takeaway 1
-- Takeaway 2
-- Takeaway 3
-[Continue for 4-6 takeaways]
+1. ✓ [High-confidence takeaway]
+2. ⚠ [Takeaway requiring validation]
+3. [Continue for 4-6 takeaways with confidence markers]
 
 ## Key Insights
 
-### Insight 1: [Title]
-[Evidence-backed insight with supporting details]
+### Insight 1: [Title] [Confidence: High/Medium/Low]
+**Finding:** [Evidence-backed statement]
+**Supporting Evidence:** [# of sources, quality assessment]
+**Implications:** [What this means]
+**Limitations:** [Caveats to consider]
 
-### Insight 2: [Title]
-[Continue for 5-7 key insights]
+[Continue for 5-7 insights]
 
 ## Summary Table
-| Area | Key Finding | Implications | Confidence |
-|------|-------------|--------------|------------|
-[Summarize findings across analyzed areas]
+| Finding | Evidence Strength | Confidence | Action Priority | Verification |
+|---------|------------------|------------|-----------------|--------------|
+| [Finding] | Strong/Moderate/Weak | High/Med/Low | High/Med/Low | ✓/⚠ |
 
 ## Recommendations
 
-### For Researchers
-[Academic research directions and questions]
+### For Researchers [Confidence: X/10]
+| Recommendation | Rationale | Feasibility | Priority |
+|----------------|-----------|-------------|----------|
 
-### For Practitioners
-[Practical, actionable insights]
+### For Practitioners [Confidence: X/10]
+| Recommendation | Implementation Steps | Resources Needed | Risk Level |
+|----------------|---------------------|------------------|------------|
 
-### For Decision-Makers
-[Strategic implications and considerations]
+### For Decision-Makers [Confidence: X/10]
+| Strategic Recommendation | Expected Impact | Investment | Timeline |
+|--------------------------|-----------------|------------|----------|
 
-## Conclusion
-[Final synthesis and forward-looking perspective]
+## Study Limitations
+- **Scope limitations:** [What was not covered]
+- **Methodological limitations:** [Research design constraints]
+- **Data limitations:** [Quality, recency, coverage issues]
+- **Potential biases:** [Language, geographic, publication bias]
 
-## References
-[Consolidated bibliography from Phase 1]`
+## Verification Checklist
+- [ ] All citations verified against source databases
+- [ ] Quantitative claims cross-checked with original papers
+- [ ] Conflicting evidence acknowledged
+- [ ] Confidence levels assigned based on evidence quality
+- [ ] Limitations clearly stated
+
+## References (Complete Bibliography)
+[Full APA formatted references with DOIs - from Phase 1]
+
+---
+**Report Metadata:**
+- Generated: ${new Date().toISOString()}
+- Sources analyzed: [X total]
+- High-confidence sources: [Y]
+- Items requiring follow-up: [Z]
+- ⚠ AI-Generated Content: This report was synthesized by an AI research assistant and requires human verification`
         };
 
         const phasePrompt = phasePrompts[phase.id] || `Execute ${phase.name} for the research task`;
