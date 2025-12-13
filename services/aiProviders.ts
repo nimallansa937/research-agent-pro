@@ -13,6 +13,7 @@ export interface AISettings {
     primaryProvider: AIProvider;
     secondaryProvider?: AIProvider;
     dialecticalMode: boolean;
+    useGoogleDeepResearch: boolean;  // Use Google's official Deep Research API
     providers: Record<AIProvider, ProviderConfig>;
 }
 
@@ -44,6 +45,7 @@ export const DEFAULT_SETTINGS: AISettings = {
     primaryProvider: 'deepseek',
     secondaryProvider: undefined,
     dialecticalMode: false,
+    useGoogleDeepResearch: false,
     providers: {
         gemini: {
             apiKey: import.meta.env.VITE_GEMINI_API_KEY || '',

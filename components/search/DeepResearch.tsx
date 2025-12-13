@@ -23,6 +23,7 @@ import { exportToPDF, exportToDOC } from '../../services/exportService';
 import { shouldSuggestEnhancement, ENHANCEMENT_THRESHOLD } from '../../services/promptEnhancer';
 import { saveFileToDrive, isAuthenticated as isDriveAuthenticated, loadDriveSettings } from '../../services/googleDriveService';
 import { saveResearch, generateTitleFromPrompt, ResearchItem } from '../../services/researchHistoryService';
+import { runGoogleDeepResearch, DeepResearchStatus } from '../../services/googleDeepResearchService';
 import { useAuth } from '../../contexts/AuthContext';
 import ReportViewer from '../report/ReportViewer';
 import PromptEnhancementDialog from './PromptEnhancementDialog';
@@ -90,6 +91,7 @@ const DeepResearch: React.FC = () => {
     const [historyKey, setHistoryKey] = useState(0); // Used to refresh history
     const [attachments, setAttachments] = useState<Attachment[]>([]);
     const [showAttachmentAnalysis, setShowAttachmentAnalysis] = useState(false);
+    const [googleResearchStatus, setGoogleResearchStatus] = useState<string | null>(null);
     const outputRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -557,6 +559,75 @@ FORMAT YOUR OUTPUT AS:
     const runDeepResearch = async (researchPrompt: string) => {
         if (!researchPrompt.trim()) return;
 
+        const settings = loadSettings();
+
+        // Check if Google Deep Research is enabled
+        if (settings.useGoogleDeepResearch && settings.providers.gemini.apiKey) {
+            setIsRunning(true);
+            setFinalReport(null);
+            setGoogleResearchStatus('Starting Google Deep Research Agent...');
+            setPhases(DEFAULT_PHASES.map(p => ({ ...p, status: 'running' as const, output: undefined })));
+
+            try {
+                const result = await runGoogleDeepResearch(
+                    settings.providers.gemini.apiKey,
+                    researchPrompt,
+                    (status: DeepResearchStatus) => {
+                        if (status.status === 'running') {
+                            setGoogleResearchStatus(`Research in progress... ${status.progress ? `(${status.progress}%)` : ''}`);
+                        }
+                    },
+                    5000, // Poll every 5 seconds
+                    600000 // 10 minute timeout
+                );
+
+                if (result.success && result.report) {
+                    const fullReport = `# Google Deep Research Report
+
+**Research Topic:** ${prompt.slice(0, 200)}${prompt.length > 200 ? '...' : ''}
+
+**Generated:** ${new Date().toLocaleString()}
+
+**Powered by:** Google Deep Research Agent (deep-research-pro-preview-12-2025)
+
+---
+
+${result.report}
+`;
+                    setFinalReport(fullReport);
+                    setPhases(DEFAULT_PHASES.map(p => ({ ...p, status: 'completed' as const })));
+                    setGoogleResearchStatus(null);
+
+                    // Auto-save research to history
+                    if (user) {
+                        try {
+                            await saveResearch(user.uid, {
+                                title: generateTitleFromPrompt(prompt),
+                                prompt,
+                                report: fullReport,
+                                phases: [],
+                                status: 'complete',
+                            });
+                            setHistoryKey(prev => prev + 1);
+                        } catch (error) {
+                            console.warn('Could not save research to history:', error);
+                        }
+                    }
+                } else {
+                    setGoogleResearchStatus(`Error: ${result.error}`);
+                    setPhases(DEFAULT_PHASES.map(p => ({ ...p, status: 'error' as const, output: result.error })));
+                }
+            } catch (error: any) {
+                setGoogleResearchStatus(`Error: ${error.message}`);
+                setPhases(DEFAULT_PHASES.map(p => ({ ...p, status: 'error' as const, output: error.message })));
+            }
+
+            setIsRunning(false);
+            setCurrentPhaseIndex(-1);
+            return;
+        }
+
+        // Standard multi-phase research
         setIsRunning(true);
         setFinalReport(null);
         setPhases(DEFAULT_PHASES.map(p => ({ ...p, status: 'pending' as const, output: undefined })));
