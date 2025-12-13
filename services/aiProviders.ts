@@ -94,6 +94,20 @@ export const loadSettings = (): AISettings => {
     return DEFAULT_SETTINGS;
 };
 
+// Helper to determine if we need CORS proxy (production only)
+const isDevelopment = (): boolean => {
+    return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+};
+
+// Wrap URL with CORS proxy for production
+const withCorsProxy = (url: string): string => {
+    if (isDevelopment()) {
+        return url; // No proxy needed in development
+    }
+    // Use corsproxy.io for production
+    return `https://corsproxy.io/?${encodeURIComponent(url)}`;
+};
+
 // Base interface for AI providers
 interface IAIProvider {
     sendMessage(message: string): Promise<string>;
@@ -111,8 +125,9 @@ class GeminiProvider implements IAIProvider {
     }
 
     async sendMessage(message: string): Promise<string> {
-        // Use direct API URL
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
+        // Use direct API URL with CORS proxy for production
+        const baseUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
+        const endpoint = withCorsProxy(baseUrl);
 
         try {
             const response = await fetch(endpoint, {
@@ -163,8 +178,11 @@ class DeepSeekProvider implements IAIProvider {
     }
 
     async sendMessage(message: string): Promise<string> {
-        // Use direct API URL (CORS handled by the API)
-        const response = await fetch('https://api.deepseek.com/chat/completions', {
+        // Use direct API URL with CORS proxy for production
+        const baseUrl = 'https://api.deepseek.com/chat/completions';
+        const endpoint = withCorsProxy(baseUrl);
+
+        const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
