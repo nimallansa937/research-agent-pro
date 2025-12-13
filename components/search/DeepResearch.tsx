@@ -28,6 +28,7 @@ import ReportViewer from '../report/ReportViewer';
 import PromptEnhancementDialog from './PromptEnhancementDialog';
 import ResearchHistory from './ResearchHistory';
 import AttachmentInput from './AttachmentInput';
+import AttachmentAnalysisDialog from './AttachmentAnalysisDialog';
 import { Attachment } from '../../types';
 
 interface ResearchPhase {
@@ -87,6 +88,7 @@ const DeepResearch: React.FC = () => {
     const [historyCollapsed, setHistoryCollapsed] = useState(false);
     const [historyKey, setHistoryKey] = useState(0); // Used to refresh history
     const [attachments, setAttachments] = useState<Attachment[]>([]);
+    const [showAttachmentAnalysis, setShowAttachmentAnalysis] = useState(false);
     const outputRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -374,6 +376,12 @@ FORMAT YOUR OUTPUT AS:
     const handleStartResearch = () => {
         if (!prompt.trim()) return;
 
+        // Check if there are attachments - ask user if they want to analyze them
+        if (attachments.length > 0) {
+            setShowAttachmentAnalysis(true);
+            return;
+        }
+
         // Check if prompt should trigger enhancement suggestion
         if (shouldSuggestEnhancement(prompt)) {
             setShowEnhancementDialog(true);
@@ -382,6 +390,22 @@ FORMAT YOUR OUTPUT AS:
 
         // Otherwise run directly
         runDeepResearch(prompt);
+    };
+
+    const handleAttachmentAnalysisConfirm = (enhancedPrompt: string) => {
+        setShowAttachmentAnalysis(false);
+        setPrompt(enhancedPrompt);
+        runDeepResearch(enhancedPrompt);
+    };
+
+    const handleAttachmentAnalysisSkip = () => {
+        setShowAttachmentAnalysis(false);
+        // Still use prompt enhancement dialog if needed
+        if (shouldSuggestEnhancement(prompt)) {
+            setShowEnhancementDialog(true);
+        } else {
+            runDeepResearch(prompt);
+        }
     };
 
     const handleEnhancedPromptConfirm = (enhancedPrompt: string) => {
@@ -746,6 +770,16 @@ Examples:
                     onConfirm={handleEnhancedPromptConfirm}
                     onCancel={() => setShowEnhancementDialog(false)}
                     onSkip={handleEnhancementSkip}
+                />
+
+                {/* Attachment Analysis Dialog */}
+                <AttachmentAnalysisDialog
+                    isOpen={showAttachmentAnalysis}
+                    attachments={attachments}
+                    originalPrompt={prompt}
+                    onConfirm={handleAttachmentAnalysisConfirm}
+                    onSkip={handleAttachmentAnalysisSkip}
+                    onCancel={() => setShowAttachmentAnalysis(false)}
                 />
             </div>
         </div>
