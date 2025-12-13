@@ -27,6 +27,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import ReportViewer from '../report/ReportViewer';
 import PromptEnhancementDialog from './PromptEnhancementDialog';
 import ResearchHistory from './ResearchHistory';
+import AttachmentInput from './AttachmentInput';
+import { Attachment } from '../../types';
 
 interface ResearchPhase {
     id: string;
@@ -84,6 +86,7 @@ const DeepResearch: React.FC = () => {
     const [driveSaveStatus, setDriveSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const [historyCollapsed, setHistoryCollapsed] = useState(false);
     const [historyKey, setHistoryKey] = useState(0); // Used to refresh history
+    const [attachments, setAttachments] = useState<Attachment[]>([]);
     const outputRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -92,14 +95,44 @@ const DeepResearch: React.FC = () => {
         }
     }, [phases, finalReport]);
 
+    // Build context from attachments for AI prompts
+    const buildAttachmentContext = (): string => {
+        if (attachments.length === 0) return '';
+
+        const contextParts: string[] = ['\\n\\n## PROVIDED REFERENCE MATERIALS:\\n'];
+
+        attachments.forEach((att, idx) => {
+            if (att.type === 'document') {
+                if (att.mimeType === 'text/plain' || att.mimeType === 'text/markdown') {
+                    // Include text content directly
+                    contextParts.push(`### Document ${idx + 1}: ${att.name}\\n${att.content?.substring(0, 5000)}${att.content && att.content.length > 5000 ? '\\n[Content truncated...]' : ''}\\n`);
+                } else {
+                    // For binary docs, note that they were provided
+                    contextParts.push(`### Document ${idx + 1}: ${att.name} (${att.mimeType})\\nNote: This document was uploaded as a reference. Please consider its typical content relevant to the research topic.\\n`);
+                }
+            } else if (att.type === 'link') {
+                contextParts.push(`### Reference Link ${idx + 1}: ${att.url}\\nPlease consider information from this source in your analysis.\\n`);
+            } else if (att.type === 'image') {
+                contextParts.push(`### Image ${idx + 1}: ${att.name}\\nNote: An image was provided as reference material.\\n`);
+            }
+        });
+
+        return contextParts.join('\\n');
+    };
+
+
     const executePhase = async (phaseIndex: number, researchPrompt: string, previousOutputs: string[]): Promise<string> => {
         const phase = DEFAULT_PHASES[phaseIndex];
         const settings = loadSettings();
 
+        // Include attachment context in the first phase
+        const attachmentContext = phaseIndex === 0 ? buildAttachmentContext() : '';
+        const fullPrompt = researchPrompt + attachmentContext;
+
         const phasePrompts: Record<string, string> = {
             slr: `You are executing Phase 1: Literature Discovery & Synthesis for the following research task:
 
-${researchPrompt}
+${fullPrompt}
 
 INSTRUCTIONS:
 1. Identify and synthesize 15-30 relevant peer-reviewed sources from academic databases (arXiv, SSRN, PubMed, IEEE, Google Scholar, etc.)
@@ -536,9 +569,19 @@ Examples:
 • Explore sustainable energy adoption barriers in developing nations
 • Investigate consumer behavior patterns in e-commerce
 • Study the effects of social media on adolescent mental health"
-                                className="w-full h-40 p-3 bg-neutral-800 border border-neutral-700 rounded-xl text-sm text-neutral-200 placeholder-neutral-500 resize-none focus:outline-none focus:border-purple-500"
+                                className="w-full h-32 p-3 bg-neutral-800 border border-neutral-700 rounded-xl text-sm text-neutral-200 placeholder-neutral-500 resize-none focus:outline-none focus:border-purple-500"
                                 disabled={isRunning}
                             />
+
+                            {/* Attachments */}
+                            <div className="mt-3">
+                                <AttachmentInput
+                                    attachments={attachments}
+                                    onAttachmentsChange={setAttachments}
+                                    disabled={isRunning}
+                                />
+                            </div>
+
                             <div className="flex gap-2 mt-3">
                                 {!isRunning ? (
                                     <button

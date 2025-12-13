@@ -199,3 +199,32 @@ export interface AppState {
   searchResults: SearchResult | null;
   isLoading: boolean;
 }
+
+// Attachment Types for Deep Research
+export type AttachmentType = 'document' | 'link' | 'image';
+
+export interface Attachment {
+  id: string;
+  type: AttachmentType;
+  name: string;
+  url?: string;           // For links or blob URLs
+  content?: string;       // Base64 for images or extracted text for documents
+  mimeType?: string;
+  size?: number;
+  addedAt: Date;
+}
+
+export const SUPPORTED_DOCUMENT_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
+  'text/markdown'
+];
+
+export const SUPPORTED_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp'
+];
+
