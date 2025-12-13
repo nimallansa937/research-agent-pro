@@ -1,0 +1,5 @@
+{
+  "name": "ResearchAgent Pro (FinRL Edition)",
+  "description": "A publication-quality AI Research Agent simulation implementing the 5-Tier Quality Framework (Discovery, Comprehension, Synthesis, Empirical Grounding, Reproducibility).",
+  "requestFramePermissions": []
+}
