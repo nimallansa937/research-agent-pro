@@ -86,7 +86,7 @@ export const isAuthenticated = (): boolean => {
  * Generate OAuth URL for authentication
  */
 export const getAuthUrl = (): string => {
-    const redirectUri = window.location.origin + '/auth/google/callback';
+    const redirectUri = window.location.origin + '/__/auth/handler';
     const params = new URLSearchParams({
         client_id: GOOGLE_CLIENT_ID,
         redirect_uri: redirectUri,
