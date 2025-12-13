@@ -111,9 +111,8 @@ class GeminiProvider implements IAIProvider {
     }
 
     async sendMessage(message: string): Promise<string> {
-        // Use local proxy request to avoid CORS
-        // Endpoint: /api/gemini/v1beta/models/{model}:generateContent?key={apiKey}
-        const endpoint = `/api/gemini/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
+        // Use direct API URL
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
 
         try {
             const response = await fetch(endpoint, {
@@ -164,8 +163,8 @@ class DeepSeekProvider implements IAIProvider {
     }
 
     async sendMessage(message: string): Promise<string> {
-        // Use local proxy request to avoid CORS
-        const response = await fetch('/api/deepseek/chat/completions', {
+        // Use direct API URL (CORS handled by the API)
+        const response = await fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
