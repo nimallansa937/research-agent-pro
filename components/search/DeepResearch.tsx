@@ -199,43 +199,71 @@ ${researchPrompt}
 PREVIOUS PHASE OUTPUT:
 ${previousOutputs.join('\\n\\n---\\n\\n')}
 
-INSTRUCTIONS:
-1. Based on the literature review, create a hierarchical classification of concepts
-2. Organize into: Core Concepts → Related Factors → Outcomes/Effects
-3. Show how concepts interact and relate to each other
-4. Create a visual framework using Mermaid diagram syntax
+QUALITY REQUIREMENTS:
+- Ground ALL concepts in Phase 1 verified sources with [#] citations
+- Define all terminology/acronyms before use
+- Mark speculative connections with ⚠ indicator
+- Ensure Mermaid diagram syntax is valid and renders correctly
 
 FORMAT YOUR OUTPUT AS:
 ## Conceptual Framework & Mapping
 
+### Glossary of Key Terms
+| Term/Acronym | Full Name | Definition | Source |
+|--------------|-----------|------------|--------|
+| [Acronym] | [Full name] | [One-sentence definition] | [Citation #] |
+[Include 10-15 key terms used in this research]
+
 ### Concept Hierarchy
 
-#### Core Concepts
-- Concept 1: [Name]
-  - Sub-concept 1.1
-  - Sub-concept 1.2
+#### Core Concepts (Established in Literature)
+**1. [Concept Name]** [Source #]
+   - Definition: [Clear definition from source]
+   - 1.1 [Sub-concept] - [Brief description]
+   - 1.2 [Sub-concept] - [Brief description]
 
-#### Related Factors & Influences
-[Continue hierarchical structure]
+#### Contributing Factors & Moderators
+[Continue with same format, citing sources]
 
 #### Outcomes & Effects
-[Continue hierarchical structure]
+[Continue with evidence strength indicators]
 
-### Conceptual Relationship Diagram
+### Relationship Matrix
+| Concept A | Relationship Type | Concept B | Evidence Level | Sources |
+|-----------|------------------|-----------|----------------|---------|
+| [X] | causes/correlates/moderates | [Y] | Strong/Moderate/Weak | [#,#] |
+
+### Conceptual Framework Diagram
 \`\`\`mermaid
 graph TD
-    A[Core Concept] --> B[Factor 1]
-    A --> C[Factor 2]
-    B --> D[Outcome 1]
-    C --> D
-    [Continue mapping relationships...]
+    subgraph Core["Core Concepts"]
+        A["Theory 1"]
+        B["Theory 2"]
+    end
+    subgraph Factors["Contributing Factors"]
+        C["Factor 1"]
+        D["Factor 2"]
+    end
+    subgraph Outcomes["Outcomes"]
+        E["Outcome 1"]
+    end
+    A -->|"strong evidence"| C
+    B -.->|"weak evidence"| D
+    C --> E
+    D --> E
 \`\`\`
+**Diagram Legend:**
+- Solid lines (→) = Strong evidence from multiple sources
+- Dashed lines (-.→) = Weak/theoretical evidence
+- ⚠ = Speculative relationship
 
-### Key Relationships & Interactions
-[Describe how concepts influence and connect to each other]
+### Theoretical Integration Summary
+[Unified perspective showing how frameworks connect]
 
-### Theoretical Framework Summary
-[Provide a unified theoretical perspective]`,
+### Framework Limitations
+- **Concepts needing more research:** [List with confidence]
+- **Theoretical gaps:** [What's missing or contested]
+- **Framework confidence:** [High/Medium/Low] - [Justification]`,
 
             forensic: `You are executing Phase 3: Deep Analysis & Evidence Review for the following research task:
 
@@ -244,40 +272,67 @@ ${researchPrompt}
 PREVIOUS PHASE OUTPUTS:
 ${previousOutputs.join('\\n\\n---\\n\\n')}
 
-INSTRUCTIONS:
-1. For each major concept or factor identified, provide deep analysis
-2. Include: Definition, Key Characteristics, Supporting Evidence, Limitations
-3. Reference specific studies, data, or examples where possible
-4. Quantify where possible with metrics, percentages, or ranges
-5. Pose critical questions for each area
+QUALITY REQUIREMENTS:
+- Verify ALL quantitative claims against source papers
+- Include sample sizes, confidence intervals, effect sizes where available
+- Mark metrics as: ✓ Verified, ⚠ Extrapolated, ❓ Estimated
+- Acknowledge contradictory findings across studies
+- Use Level of Evidence (LOE) ratings: 1a (Meta-analysis), 1b (RCT), 2 (Quasi-exp), 3 (Observational), 4 (Expert opinion)
 
 FORMAT YOUR OUTPUT AS:
 ## Deep Analysis & Evidence Review
 
+### Evidence Quality Summary
+| Component | # Sources | LOE Range | Confidence | Key Gap |
+|-----------|-----------|-----------|------------|---------|
+| [Name] | [N] | [1a-4] | High/Med/Low | [Gap] |
+
+---
+
 ### Component 1: [Name]
-**Definition:** [Clear, technical definition]
+
+**Definition:** [Technical definition with citation [#]]
 
 **Key Characteristics:**
-- Characteristic 1
-- Characteristic 2
-- Characteristic 3
+1. [Characteristic] — Source: [#], LOE: [X]
+2. [Characteristic] — Source: [#], LOE: [X]
 
-**Supporting Evidence:**
-| Source | Evidence Type | Key Finding | Strength |
-|--------|---------------|-------------|----------|
-[Fill with relevant studies/data]
+**Evidence Strength Matrix:**
+| Source | Type | LOE | Finding | n= | Effect Size | Verification |
+|--------|------|-----|---------|-----|-------------|--------------|
+| [Author (Year)] | fMRI/Behavioral/Review | 1a-4 | [Result] | [N] | [d=X.X] | ✓/⚠/❓ |
 
-**Quantitative Insights:**
-[Any numerical data, statistics, or measurable aspects]
+**Quantitative Evidence:**
+| Metric | Value | 95% CI | Sample | Source | Status |
+|--------|-------|--------|--------|--------|--------|
+| [Metric] | [X%] | [X-Y%] | n=[N] | [#] | ✓/⚠/❓ |
+
+**Contradictory Findings:**
+| Finding A | Finding B | Possible Explanation |
+|-----------|-----------|---------------------|
+| [Study X found...] | [Study Y found...] | [Methodological/contextual differences] |
 
 **Limitations & Caveats:**
-[What are the constraints or conditions?]
+- **Methodological:** [Study design issues]
+- **Generalizability:** [Population/context limits]
+- **Recency:** [How current is evidence?]
+- **Risk of Bias:** [Publication bias, etc.]
 
-**Critical Questions:**
-- Question 1?
-- Question 2?
+**Critical Research Questions:**
+1. ❓ [Open question with priority: High/Medium/Low]
+2. ❓ [Open question with experimental suggestion]
 
-[Repeat for 4-6 major components]`,
+**Component Confidence:** [High/Medium/Low] — [Justification]
+
+---
+[Repeat for 4-6 major components]
+
+### Cross-Component Synthesis
+| Component A | Relationship | Component B | Evidence | Confidence |
+|-------------|--------------|-------------|----------|------------|
+
+### Overall Analysis Confidence: [High/Medium/Low]
+Based on: [X sources verified, Y% high-quality evidence, Z contradictions resolved]`,
 
             quantitative: `You are executing Phase 4: Methodology & Framework Design for the following research task:
 
