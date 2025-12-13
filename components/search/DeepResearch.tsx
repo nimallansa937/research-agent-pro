@@ -137,20 +137,27 @@ const DeepResearch: React.FC = () => {
 
 ${fullPrompt}
 
-CRITICAL QUALITY REQUIREMENTS:
+CRITICAL FORMATTING RULES (MUST FOLLOW):
+- Use ONLY ASCII characters - NO Unicode symbols (no checkmarks, warning triangles, etc.)
+- Use these text markers: [VERIFIED], [NEEDS-CHECK], [ESTIMATED]
+- COMPLETE ALL TEXT - never truncate titles, author names, or descriptions
+- Write FULL author names (avoid "et al." in bibliography entries)
+- Include COMPLETE DOI links (full URL, never shortened or cut off)
+- Every table cell MUST contain complete text - no "..." or partial content
+- If length is a concern, include FEWER complete entries rather than many truncated ones
+
+QUALITY REQUIREMENTS:
 - ONLY cite papers/sources that actually exist - do NOT fabricate references
-- Include COMPLETE citation info: Author(s), Year, Full Title, Journal/Venue, DOI/URL
-- Mark confidence: ✓ Verified (real paper), ⚠ Needs validation (uncertain if exists)
-- If you cannot verify a source exists, clearly state this
+- Mark each source: [VERIFIED] = confirmed real with DOI, [NEEDS-CHECK] = uncertain
 - Distinguish: Established facts vs Emerging research vs Theoretical proposals
 
 INSTRUCTIONS:
 1. Search across: arXiv, SSRN, PubMed, IEEE, Google Scholar, Semantic Scholar
-2. Identify 15-30 relevant peer-reviewed sources (prioritize 2020-2025 publications)
-3. Create annotated bibliography with COMPLETE citation data
-4. Assign Relevance Score (1-100) and Evidence Quality (1-10) with justification
+2. Identify 12-20 relevant peer-reviewed sources (prioritize 2020-2025)
+3. Create annotated bibliography with COMPLETE citation data (no truncation)
+4. Assign Relevance Score (1-100) and Evidence Quality (1-10)
 5. Organize into 3-5 thematic categories
-6. Include DOIs for all sources where available
+6. Include full DOI URLs for all sources
 
 FORMAT YOUR OUTPUT AS:
 ## Literature Discovery & Synthesis
@@ -167,30 +174,34 @@ FORMAT YOUR OUTPUT AS:
 ### Annotated Bibliography
 
 #### Category 1: [Name]
-| # | Citation (APA Format) | Key Finding | Relevance | Quality | Confidence |
-|---|----------------------|-------------|-----------|---------|------------|
-| 1 | Author, A. (Year). *Full Title*. Journal, Vol(Issue), pp. DOI:xxx | [Finding] | [1-100] | [1-10] | ✓/⚠ |
+| # | Citation (Complete APA) | Key Finding | Rel. | Qual. | Status |
+|---|------------------------|-------------|------|-------|--------|
+| 1 | LastName, F., LastName2, F. (Year). Full Title Here. Journal, Vol(Issue), pp-pp. https://doi.org/xxx | [Complete finding] | 85 | 8 | [VERIFIED] |
 
-[Repeat for each category with 4-8 sources each]
+[Repeat for each category with 3-6 COMPLETE sources each]
 
 ### Top 5 Most Relevant Sources
-| Rank | Full Citation | Why It's Critical | DOI/URL |
-|------|---------------|-------------------|---------|
+| Rank | Full Citation (no truncation) | Why Critical | Complete DOI URL |
+|------|------------------------------|--------------|------------------|
 
 ### Key Themes Identified
-[4-6 major themes with supporting evidence counts]
+1. Theme: [Description] - Sources: [X]
+2. Theme: [Description] - Sources: [X]
+[Continue for 4-6 themes]
 
 ### Research Gaps & Opportunities
-[Specific gaps identified with confidence assessment]
+- Gap 1: [Description] - Priority: High/Medium/Low
+- Gap 2: [Description] - Priority: High/Medium/Low
 
-### Verification Notes
-⚠ **Sources Requiring Validation:** [List any uncertain sources]
-✓ **High-Confidence Sources:** [List verified sources with DOIs]
+### Verification Summary
+- [VERIFIED] Sources (with DOIs): [X of Y total]
+- [NEEDS-CHECK] Sources: [List numbers]
+- Overall confidence: High/Medium/Low
 
 ### Limitations of This Review
 - Scope: [What was included/excluded]
 - Potential biases: [Language, date range, database coverage]
-- Confidence level: [High/Medium/Low] based on source verification rate`,
+- Confidence level: [High/Medium/Low] based on verification rate`,
 
             taxonomy: `You are executing Phase 2: Conceptual Framework & Mapping for the following research task:
 
@@ -199,11 +210,17 @@ ${researchPrompt}
 PREVIOUS PHASE OUTPUT:
 ${previousOutputs.join('\\n\\n---\\n\\n')}
 
+CRITICAL FORMATTING RULES:
+- Use ONLY ASCII characters - NO Unicode symbols
+- Use markers: [VERIFIED], [SPECULATIVE], [NEEDS-CHECK]
+- COMPLETE ALL TEXT - no truncation in definitions or descriptions
+- Use simple ASCII for diagrams (-->, ---, |, +)
+- Every table cell must contain complete text
+
 QUALITY REQUIREMENTS:
-- Ground ALL concepts in Phase 1 verified sources with [#] citations
-- Define all terminology/acronyms before use
-- Mark speculative connections with ⚠ indicator
-- Ensure Mermaid diagram syntax is valid and renders correctly
+- Ground ALL concepts in Phase 1 sources with [#] citations
+- Define all terminology/acronyms in glossary before use
+- Mark speculative connections with [SPECULATIVE] tag
 
 FORMAT YOUR OUTPUT AS:
 ## Conceptual Framework & Mapping
@@ -253,9 +270,9 @@ graph TD
     D --> E
 \`\`\`
 **Diagram Legend:**
-- Solid lines (→) = Strong evidence from multiple sources
-- Dashed lines (-.→) = Weak/theoretical evidence
-- ⚠ = Speculative relationship
+- Solid arrows (---->) = Strong evidence from multiple sources
+- Dashed arrows (....>) = Weak/theoretical evidence
+- [SPECULATIVE] = Proposed relationship needing more research
 
 ### Theoretical Integration Summary
 [Unified perspective showing how frameworks connect]
@@ -272,57 +289,63 @@ ${researchPrompt}
 PREVIOUS PHASE OUTPUTS:
 ${previousOutputs.join('\\n\\n---\\n\\n')}
 
+CRITICAL FORMATTING RULES:
+- Use ONLY ASCII characters - NO Unicode symbols (no checkmarks, triangles, etc.)
+- Use these markers: [VERIFIED], [EXTRAPOLATED], [ESTIMATED]
+- COMPLETE ALL TEXT - every table cell must have full content, no truncation
+- Include full sample sizes, complete confidence intervals
+
 QUALITY REQUIREMENTS:
 - Verify ALL quantitative claims against source papers
 - Include sample sizes, confidence intervals, effect sizes where available
-- Mark metrics as: ✓ Verified, ⚠ Extrapolated, ❓ Estimated
+- Mark metrics as: [VERIFIED], [EXTRAPOLATED], [ESTIMATED]
 - Acknowledge contradictory findings across studies
-- Use Level of Evidence (LOE) ratings: 1a (Meta-analysis), 1b (RCT), 2 (Quasi-exp), 3 (Observational), 4 (Expert opinion)
+- Use LOE ratings: 1a (Meta-analysis), 1b (RCT), 2 (Quasi-exp), 3 (Observational), 4 (Expert)
 
 FORMAT YOUR OUTPUT AS:
 ## Deep Analysis & Evidence Review
 
 ### Evidence Quality Summary
-| Component | # Sources | LOE Range | Confidence | Key Gap |
-|-----------|-----------|-----------|------------|---------|
-| [Name] | [N] | [1a-4] | High/Med/Low | [Gap] |
+| Component | # Sources | LOE Range | Confidence | Key Gap (complete) |
+|-----------|-----------|-----------|------------|-------------------|
+| [Name] | [N] | [1a-4] | High/Med/Low | [Full description] |
 
 ---
 
 ### Component 1: [Name]
 
-**Definition:** [Technical definition with citation [#]]
+**Definition:** [Complete technical definition with citation [#]]
 
 **Key Characteristics:**
-1. [Characteristic] — Source: [#], LOE: [X]
-2. [Characteristic] — Source: [#], LOE: [X]
+1. [Characteristic] - Source: [#], LOE: [X]
+2. [Characteristic] - Source: [#], LOE: [X]
 
 **Evidence Strength Matrix:**
-| Source | Type | LOE | Finding | n= | Effect Size | Verification |
-|--------|------|-----|---------|-----|-------------|--------------|
-| [Author (Year)] | fMRI/Behavioral/Review | 1a-4 | [Result] | [N] | [d=X.X] | ✓/⚠/❓ |
+| Source | Type | LOE | Finding (complete) | n= | Effect | Status |
+|--------|------|-----|-------------------|-----|--------|--------|
+| [Author (Year)] | fMRI/Behavioral/Review | 1a-4 | [Full result] | [N] | [d=X.X] | [VERIFIED] |
 
 **Quantitative Evidence:**
 | Metric | Value | 95% CI | Sample | Source | Status |
 |--------|-------|--------|--------|--------|--------|
-| [Metric] | [X%] | [X-Y%] | n=[N] | [#] | ✓/⚠/❓ |
+| [Metric] | [X%] | [X-Y%] | n=[N] | [#] | [VERIFIED] |
 
 **Contradictory Findings:**
-| Finding A | Finding B | Possible Explanation |
-|-----------|-----------|---------------------|
-| [Study X found...] | [Study Y found...] | [Methodological/contextual differences] |
+| Finding A | Finding B | Explanation |
+|-----------|-----------|-------------|
+| [Study X found...] | [Study Y found...] | [Differences explained] |
 
 **Limitations & Caveats:**
-- **Methodological:** [Study design issues]
-- **Generalizability:** [Population/context limits]
-- **Recency:** [How current is evidence?]
-- **Risk of Bias:** [Publication bias, etc.]
+- Methodological: [Study design issues]
+- Generalizability: [Population/context limits]
+- Recency: [How current is evidence?]
+- Risk of Bias: [Publication bias, etc.]
 
 **Critical Research Questions:**
-1. ❓ [Open question with priority: High/Medium/Low]
-2. ❓ [Open question with experimental suggestion]
+1. [Q1] - Priority: High/Medium/Low
+2. [Q2] - Suggested experiment: [Description]
 
-**Component Confidence:** [High/Medium/Low] — [Justification]
+**Component Confidence:** High/Medium/Low - [Justification]
 
 ---
 [Repeat for 4-6 major components]
@@ -331,8 +354,8 @@ FORMAT YOUR OUTPUT AS:
 | Component A | Relationship | Component B | Evidence | Confidence |
 |-------------|--------------|-------------|----------|------------|
 
-### Overall Analysis Confidence: [High/Medium/Low]
-Based on: [X sources verified, Y% high-quality evidence, Z contradictions resolved]`,
+### Overall Analysis Confidence: High/Medium/Low
+Based on: [X sources verified, Y% high-quality evidence, Z contradictions addressed]`,
 
             quantitative: `You are executing Phase 4: Methodology & Framework Design for the following research task:
 
@@ -389,7 +412,13 @@ ${researchPrompt}
 ALL PREVIOUS PHASE OUTPUTS:
 ${previousOutputs.join('\\n\\n---\\n\\n')}
 
-CRITICAL QUALITY REQUIREMENTS:
+CRITICAL FORMATTING RULES:
+- Use ONLY ASCII characters - NO Unicode symbols
+- Use markers: [VERIFIED], [NEEDS-CHECK], [HIGH-CONF], [LOW-CONF]
+- COMPLETE ALL TEXT - no truncation anywhere
+- Every table cell must contain full content
+
+QUALITY REQUIREMENTS:
 - Synthesize ONLY verified findings from previous phases
 - Include confidence levels for ALL recommendations
 - Acknowledge limitations and uncertainties explicitly
@@ -401,18 +430,18 @@ FORMAT YOUR OUTPUT AS:
 ## Executive Summary
 
 **Research Question:** [Restated clearly]
-**Answer:** [One-paragraph evidence-based answer]
-**Overall Confidence:** [High/Medium/Low] based on [X verified sources, Y% high-quality evidence]
+**Answer:** [Complete one-paragraph evidence-based answer]
+**Overall Confidence:** High/Medium/Low based on [X verified sources, Y% high-quality evidence]
 
 **Key Takeaways:**
-1. ✓ [High-confidence takeaway]
-2. ⚠ [Takeaway requiring validation]
+1. [HIGH-CONF] [High-confidence takeaway - complete text]
+2. [NEEDS-CHECK] [Takeaway requiring validation - complete text]
 3. [Continue for 4-6 takeaways with confidence markers]
 
 ## Key Insights
 
-### Insight 1: [Title] [Confidence: High/Medium/Low]
-**Finding:** [Evidence-backed statement]
+### Insight 1: [Title] - Confidence: High/Medium/Low
+**Finding:** [Evidence-backed statement - complete]
 **Supporting Evidence:** [# of sources, quality assessment]
 **Implications:** [What this means]
 **Limitations:** [Caveats to consider]
@@ -420,9 +449,9 @@ FORMAT YOUR OUTPUT AS:
 [Continue for 5-7 insights]
 
 ## Summary Table
-| Finding | Evidence Strength | Confidence | Action Priority | Verification |
-|---------|------------------|------------|-----------------|--------------|
-| [Finding] | Strong/Moderate/Weak | High/Med/Low | High/Med/Low | ✓/⚠ |
+| Finding (complete) | Evidence | Confidence | Priority | Status |
+|-------------------|----------|------------|----------|--------|
+| [Full finding text] | Strong/Moderate/Weak | High/Med/Low | High/Med/Low | [VERIFIED] |
 
 ## Recommendations
 
