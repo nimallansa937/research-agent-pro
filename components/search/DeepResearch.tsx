@@ -29,6 +29,7 @@ import PromptEnhancementDialog from './PromptEnhancementDialog';
 import ResearchHistory from './ResearchHistory';
 import AttachmentInput from './AttachmentInput';
 import AttachmentAnalysisDialog from './AttachmentAnalysisDialog';
+import ThinkingActivity from './ThinkingActivity';
 import { Attachment } from '../../types';
 
 interface ResearchPhase {
@@ -674,6 +675,12 @@ Examples:
                                                 <p className="text-xs text-neutral-500 truncate">{phase.description}</p>
                                             </div>
                                         </div>
+
+                                        {/* Thinking Activity Display */}
+                                        <ThinkingActivity
+                                            phaseId={phase.id}
+                                            isActive={phase.status === 'running'}
+                                        />
                                     </div>
                                 ))}
                             </div>
