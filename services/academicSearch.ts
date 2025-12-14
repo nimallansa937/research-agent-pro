@@ -11,7 +11,7 @@ export interface AcademicPaper {
     url?: string;
     citationCount?: number;
     venue?: string;
-    source: 'semantic_scholar' | 'openalex' | 'crossref';
+    source: 'semantic_scholar' | 'openalex' | 'crossref' | 'arxiv';
 }
 
 export interface SearchResult {
@@ -142,6 +142,74 @@ const reconstructAbstract = (invertedIndex: Record<string, number[]>): string =>
 };
 
 /**
+ * Search ArXiv for academic papers (Preprints)
+ * Free API, no auth required
+ * Docs: https://info.arxiv.org/help/api/index.html
+ */
+export const searchArxiv = async (
+    query: string,
+    limit: number = 25
+): Promise<SearchResult> => {
+    // ArXiv supports simple search query like all:term
+    const baseUrl = `https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}&start=0&max_results=${limit}`;
+    const url = withCorsProxy(baseUrl);
+
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            console.error('ArXiv API error:', response.status);
+            return { papers: [], total: 0, query, source: 'arxiv' };
+        }
+
+        const text = await response.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(text, 'text/xml');
+        const entries = Array.from(xmlDoc.querySelectorAll('entry'));
+
+        const papers: AcademicPaper[] = entries.map(entry => {
+            const idUrl = entry.querySelector('id')?.textContent || '';
+            const paperId = idUrl.split('/abs/')[1] || idUrl;
+            const title = entry.querySelector('title')?.textContent || 'Untitled';
+            const summary = entry.querySelector('summary')?.textContent || '';
+            const published = entry.querySelector('published')?.textContent || '';
+            const year = published ? new Date(published).getFullYear() : 0;
+            const authors = Array.from(entry.querySelectorAll('author name')).map(n => n.textContent || '');
+
+            // Try to find DOI
+            const doiElem = entry.querySelector('arxiv\\:doi, doi'); // Namespace might vary in implementation
+            const doi = doiElem?.textContent;
+
+            return {
+                paperId,
+                title: title.replace(/\n/g, ' ').trim(),
+                authors,
+                year,
+                abstract: summary.replace(/\n/g, ' ').trim().slice(0, 500),
+                doi: doi || undefined,
+                url: idUrl, // ArXiv URL
+                venue: 'ArXiv Preprint',
+                citationCount: 0, // ArXiv API doesn't provide citation counts
+                source: 'arxiv' as const
+            };
+        });
+
+        // Parse total results
+        const options = xmlDoc.querySelector('opensearch\\:totalResults, totalResults');
+        const total = options ? parseInt(options.textContent || '0') : papers.length;
+
+        return {
+            papers,
+            total,
+            query,
+            source: 'arxiv'
+        };
+    } catch (error) {
+        console.error('ArXiv search failed:', error);
+        return { papers: [], total: 0, query, source: 'arxiv' };
+    }
+};
+
+/**
  * Verify a citation exists via CrossRef
  * Free API, no auth required
  * Docs: https://api.crossref.org/
@@ -201,10 +269,11 @@ export const searchAllAcademicSources = async (
 ): Promise<AcademicPaper[]> => {
     console.log(`Searching academic sources for: "${query}"`);
 
-    // Search both sources in parallel
-    const [semanticResult, openAlexResult] = await Promise.all([
+    // Search all sources in parallel
+    const [semanticResult, openAlexResult, arxivResult] = await Promise.all([
         searchSemanticScholar(query, limitPerSource),
-        searchOpenAlex(query, limitPerSource)
+        searchOpenAlex(query, limitPerSource),
+        searchArxiv(query, limitPerSource)
     ]);
 
     // Combine and deduplicate by DOI
@@ -223,6 +292,7 @@ export const searchAllAcademicSources = async (
 
     addPapers(semanticResult.papers);
     addPapers(openAlexResult.papers);
+    addPapers(arxivResult.papers);
 
     // Sort by citation count (most cited first)
     combined.sort((a, b) => (b.citationCount || 0) - (a.citationCount || 0));
