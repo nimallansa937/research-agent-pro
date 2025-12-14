@@ -17,11 +17,12 @@ import {
     FileDown,
     FileType,
     Cloud,
-    Search
+    Search,
+    Quote
 } from 'lucide-react';
 import { searchAllAcademicSources, formatPapersForPrompt, AcademicPaper } from '../../services/academicSearch';
 import { loadSettings, runDialecticalAnalysis, sendToProvider, AIResponse } from '../../services/aiProviders';
-import { exportToPDF, exportToDOC } from '../../services/exportService';
+import { exportToPDF, exportToDOC, exportToBibTeX } from '../../services/exportService';
 import { shouldSuggestEnhancement, ENHANCEMENT_THRESHOLD } from '../../services/promptEnhancer';
 import { saveFileToDrive, isAuthenticated as isDriveAuthenticated, loadDriveSettings } from '../../services/googleDriveService';
 import { saveResearch, generateTitleFromPrompt, ResearchItem } from '../../services/researchHistoryService';
@@ -118,7 +119,45 @@ const DeepResearch: React.FC = () => {
     const [attachments, setAttachments] = useState<Attachment[]>([]);
     const [showAttachmentAnalysis, setShowAttachmentAnalysis] = useState(false);
     const [googleResearchStatus, setGoogleResearchStatus] = useState<string | null>(null);
+    const [searchThemes, setSearchThemes] = useState<string[]>([]);
     const outputRef = useRef<HTMLDivElement>(null);
+
+    // Generate 4 distinct search themes based on the research topic
+    const generateSearchThemes = async (topic: string) => {
+        try {
+            console.log('Generating search themes for:', topic);
+            const settings = loadSettings();
+            const prompt = `Based on the research topic: "${topic}", generate 4 distinct search queries to cover different aspects of the literature.
+            
+            1. Broad foundational search (Core theories/concepts)
+            2. Theoretical/Mechanistic search (How it works/Frameworks)
+            3. Empirical/Methodological search (Evidence/Data/Experiments)
+            4. Review/Systematic search (Meta-analyses/State of the art)
+            
+            Return ONLY the 4 search queries, one per line. No numbering, no extra text.`;
+
+            const response = await sendToProvider(settings.primaryProvider, settings, prompt);
+            const themes = response.content.split('\n').filter(line => line.trim().length > 0).slice(0, 4);
+
+            // Fallback if LLM fails to generate 4 lines
+            while (themes.length < 4) {
+                themes.push(`${topic} analysis`);
+            }
+
+            console.log('Generated themes:', themes);
+            setSearchThemes(themes);
+            return themes;
+        } catch (error) {
+            console.error('Failed to generate search themes:', error);
+            // Fallback themes
+            return [
+                topic,
+                `${topic} theory mechanisms`,
+                `${topic} empirical evidence data`,
+                `${topic} systematic review`
+            ];
+        }
+    };
 
     useEffect(() => {
         if (outputRef.current) {
@@ -152,7 +191,7 @@ const DeepResearch: React.FC = () => {
     };
 
 
-    const executePhase = async (phaseIndex: number, researchPrompt: string, previousOutputs: string[]): Promise<string> => {
+    const executePhase = async (phaseIndex: number, researchPrompt: string, previousOutputs: string[], themes?: string[]): Promise<string> => {
         const phase = DEFAULT_PHASES[phaseIndex];
         const settings = loadSettings();
 
@@ -165,20 +204,31 @@ const DeepResearch: React.FC = () => {
         let realPapers: AcademicPaper[] = [];
         let papersContext = '';
 
+        let currentSearchQuery = researchPrompt;
+
         if (isLiteraturePhase) {
             console.log(`Phase ${phase.id}: Fetching real academic papers...`);
             try {
-                // Use different search terms for variety
-                const searchVariants: Record<string, string> = {
-                    'slr1': researchPrompt, // Main topic
-                    'slr2': `${researchPrompt} theoretical framework`, // Theory focus
-                    'slr3': `${researchPrompt} empirical study methodology`, // Methods focus
-                    'slr4': `${researchPrompt} systematic review meta-analysis`, // Reviews focus
-                };
-                const searchQuery = searchVariants[phase.id] || researchPrompt;
-                realPapers = await searchAllAcademicSources(searchQuery, 25);
+                // Use dynamic themes if available, otherwise fall back to variants
+                if (themes && themes.length >= 4) {
+                    const themeIndex = ['slr1', 'slr2', 'slr3', 'slr4'].indexOf(phase.id);
+                    if (themeIndex >= 0 && themes[themeIndex]) {
+                        currentSearchQuery = themes[themeIndex];
+                        console.log(`Using dynamic theme for ${phase.id}: "${currentSearchQuery}"`);
+                    }
+                } else {
+                    const searchVariants: Record<string, string> = {
+                        'slr1': researchPrompt,
+                        'slr2': `${researchPrompt} theoretical framework`,
+                        'slr3': `${researchPrompt} empirical study methodology`,
+                        'slr4': `${researchPrompt} systematic review meta-analysis`,
+                    };
+                    currentSearchQuery = searchVariants[phase.id] || researchPrompt;
+                }
+
+                realPapers = await searchAllAcademicSources(currentSearchQuery, 25);
                 papersContext = formatPapersForPrompt(realPapers);
-                console.log(`Found ${realPapers.length} real papers for ${phase.id}`);
+                console.log(`Found ${realPapers.length} real papers for ${phase.id} using: ${currentSearchQuery}`);
             } catch (error) {
                 console.error('Academic search failed, falling back to LLM:', error);
                 papersContext = 'Note: Academic database search unavailable. Please generate representative sources.';
@@ -273,10 +323,13 @@ OUTPUT:
 - Average relevance score: XX
 - Year range: XXXX-2025
 
-### Major Themes (8-10 themes)
-1. Theme: [Name] - Sources: [count] - Key insight
-2. Theme: [Name] - Sources: [count] - Key insight
-[Continue for all major themes]
+### Literature Matrix (Consolidated)
+| Theme | Key Methodologies Used | LOE Range | Major Findings | Critical Sources |
+|-------|------------------------|-----------|----------------|------------------|
+| [Theme 1] | [Methods] | [Range] | [Findings] | [Citations] |
+| [Theme 2] | [Methods] | [Range] | [Findings] | [Citations] |
+| [Theme 3] | [Methods] | [Range] | [Findings] | [Citations] |
+| [Theme 4] | [Methods] | [Range] | [Findings] | [Citations] |
 
 ### Top 20 Most Critical Sources
 | Rank | Citation | Score | Why Critical |
@@ -326,60 +379,65 @@ graph TD
 ### Theoretical Integration
 [How concepts connect]`,
 
-            forensic: `Phase 3: Deep Analysis & Evidence Review
+            forensic: `Phase 3: Case Studies & Empirical Evidence
 
 RESEARCH TOPIC: ${researchPrompt}
 
 CONSOLIDATED LITERATURE (use the summary from Phase 1.5):
 ${previousOutputs.length > 0 ? previousOutputs[previousOutputs.length - 1] : 'No previous output'}
 
-TASK: Provide deep analysis of 5-6 key components.
+TASK: Identify and analyze 3-4 CASE STUDIES or real-world examples from the literature.
+Focus on: Empirical data, timeline of events, root causes, and outcomes.
 
 OUTPUT:
-## Deep Analysis & Evidence Review
+## Case Studies & Empirical Evidence
 
-### Evidence Summary
-| Component | Sources | Confidence |
-|-----------|---------|------------|
+### Case Study 1: [Name/Event]
+**Context:** [Background]
+**Timeline/Progression:** [Key events]
+**Data Points:** [Quantifiable metrics found in literature]
+**Key Lessons:** [What this case demonstrates]
 
-### Component Analysis (5-6 components)
-For each: Definition, Evidence, Limitations
+### Case Study 2: [Name/Event]
+[Same structure]
 
-### Cross-Component Synthesis
-Key relationships between components
+### Case Study 3: [Name/Event]
+[Same structure]
 
-### Overall Confidence: High/Medium/Low`,
+### Cross-Case Analysis
+| Feature | Case 1 | Case 2 | Case 3 | Pattern Identified |
+|---------|--------|--------|--------|--------------------|
+[Compare cases]`,
 
-            quantitative: `Phase 4: Methodology & Framework Design
+            quantitative: `Phase 4: Empirical Validation Framework
 
 RESEARCH TOPIC: ${researchPrompt}
 
-TASK: Design a methodological framework based on the research.
+TASK: Design an empirical validation study based on the findings and case studies.
 
 OUTPUT:
-## Methodology & Framework Design
+## Empirical Validation Framework
 
-### Framework Overview
-[Describe the approach]
+### Proposed Methodology
+[How to validate the findings using real data]
 
 ### Key Variables & Metrics
-| Variable | Definition | Measurement |
-|----------|------------|-------------|
+| Variable | Definition | Measurement Source |
+|----------|------------|-------------------|
 [8-12 variables]
 
-### Framework Diagram
+### Validation Steps
+1. **Data Collection:** [Where to get data]
+2. **Analysis Model:** [Statistical/Machine Learning approach]
+3. **Hypotheses:** [What to test]
+
+### Validation Diagram
 \`\`\`mermaid
 flowchart LR
-    A[Input] --> B[Process]
-    B --> C[Output]
-\`\`\`
-
-### Implementation Steps
-1. [Step 1]
-2. [Step 2]
-
-### Validation Approach
-[How to verify]`,
+    A[Data Ingestion] --> B[Processing]
+    B --> C[Analysis]
+    C --> D[Validation Result]
+\`\`\``,
 
             synthesis: `Phase 5: Synthesis & Recommendations
 
@@ -561,6 +619,9 @@ ${result.report}
         setFinalReport(null);
         setPhases(DEFAULT_PHASES.map(p => ({ ...p, status: 'pending' as const, output: undefined })));
 
+        // Generate dynamic search themes first
+        const themes = await generateSearchThemes(prompt);
+
         const outputs: string[] = [];
 
         for (let i = 0; i < DEFAULT_PHASES.length; i++) {
@@ -570,7 +631,7 @@ ${result.report}
             ));
 
             try {
-                const output = await executePhase(i, researchPrompt, outputs);
+                const output = await executePhase(i, researchPrompt, outputs, themes);
                 outputs.push(output);
 
                 setPhases(prev => prev.map((p, idx) =>
@@ -652,6 +713,18 @@ ${outputs.join('\n\n---\n\n')}
             );
         } catch (error) {
             console.error('Failed to export DOCX:', error);
+        }
+    };
+
+    const handleExportBibTeX = async () => {
+        if (!finalReport) return;
+        try {
+            await exportToBibTeX(
+                finalReport,
+                prompt.slice(0, 50) || 'Deep Research Report'
+            );
+        } catch (error) {
+            console.error('Failed to export BibTeX:', error);
         }
     };
 
@@ -835,6 +908,10 @@ Examples:
                                         <FileType className="w-4 h-4" />
                                         DOCX
                                     </button>
+                                    <button onClick={handleExportBibTeX} className="btn btn-ghost btn-sm" title="Export Citations (BibTeX)">
+                                        <Quote className="w-4 h-4" />
+                                        BibTeX
+                                    </button>
                                     <button onClick={handleExportPDF} className="btn btn-secondary btn-sm" title="Export to PDF">
                                         <FileDown className="w-4 h-4" />
                                         PDF
@@ -923,7 +1000,7 @@ Examples:
                     onCancel={() => setShowAttachmentAnalysis(false)}
                 />
             </div>
-        </div>
+        </div >
     );
 };
 
