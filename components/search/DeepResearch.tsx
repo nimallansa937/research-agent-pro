@@ -28,7 +28,7 @@ import { shouldSuggestEnhancement, ENHANCEMENT_THRESHOLD } from '../../services/
 import { saveFileToDrive, isAuthenticated as isDriveAuthenticated, loadDriveSettings } from '../../services/googleDriveService';
 import { saveResearch, generateTitleFromPrompt, ResearchItem } from '../../services/researchHistoryService';
 import { runGoogleDeepResearch, DeepResearchStatus } from '../../services/googleDeepResearchService';
-import { isPythonAgentAvailable, searchWithPythonAgent, llmSearchWithPythonAgent, getFormattedOutput } from '../../services/pythonAgentService';
+import { isPythonAgentAvailable, searchWithPythonAgent, llmSearchWithPythonAgent, multiAgentSearch, getFormattedOutput } from '../../services/pythonAgentService';
 import { useAuth } from '../../contexts/AuthContext';
 import ReportViewer from '../report/ReportViewer';
 import PromptEnhancementDialog from './PromptEnhancementDialog';
@@ -132,6 +132,8 @@ const DeepResearch: React.FC = () => {
     const [googleResearchStatus, setGoogleResearchStatus] = useState<string | null>(null);
     const [searchThemes, setSearchThemes] = useState<string[]>([]);
     const [usePythonAgent, setUsePythonAgent] = useState(false);
+    const [useMultiAgent, setUseMultiAgent] = useState(false); // Multi-agent 3-tier system
+    const [multiAgentPatterns, setMultiAgentPatterns] = useState<{ name: string; insight: string; confidence: number }[]>([]);
     const [pythonAgentAvailable, setPythonAgentAvailable] = useState(false);
     const outputRef = useRef<HTMLDivElement>(null);
 
@@ -245,6 +247,51 @@ const DeepResearch: React.FC = () => {
                         'slr4': `${researchPrompt} systematic review meta-analysis`,
                     };
                     currentSearchQuery = searchVariants[phase.id] || researchPrompt;
+                }
+
+                // Use Multi-Agent System if enabled (3-tier: scripted + Gemini + DeepSeek)
+                if (useMultiAgent && pythonAgentAvailable && phase.id === 'slr1') {
+                    console.log(`Using Multi-Agent System (3-tier) for comprehensive literature search`);
+                    try {
+                        const multiResult = await multiAgentSearch(researchPrompt, 3);
+                        // Convert papers to our format
+                        realPapers = multiResult.papers.map(p => ({
+                            paperId: p.paper_id || p.doi || `multi-${Date.now()}`,
+                            title: p.title,
+                            authors: p.authors || [],
+                            year: p.year,
+                            abstract: p.abstract || '',
+                            doi: p.doi,
+                            url: p.url || (p.doi ? `https://doi.org/${p.doi}` : ''),
+                            citationCount: p.citation_count || 0,
+                            venue: '',
+                            source: p.source || 'multi-agent',
+                            qualityScore: p.llm_relevance_score ? p.llm_relevance_score / 100 : (p.quality_score || 0.5),
+                            verified: true
+                        })) as ScoredPaper[];
+
+                        // Store patterns for later synthesis
+                        if (multiResult.patterns) {
+                            setMultiAgentPatterns(multiResult.patterns.map(p => ({
+                                name: p.name,
+                                insight: p.insight,
+                                confidence: p.confidence
+                            })));
+                        }
+
+                        papersContext = `## Multi-Agent Research Results (${realPapers.length} papers)\n\n` +
+                            `**Coverage:** ${multiResult.coverage?.coverage_score || 'N/A'}%\n` +
+                            `**Patterns Found:** ${multiResult.patterns?.length || 0}\n\n` +
+                            multiResult.papers.slice(0, 20).map((p, i) =>
+                                `[${i + 1}] ${p.authors?.[0] || 'Unknown'} (${p.year}). ${p.title}. DOI: ${p.doi || 'N/A'}`
+                            ).join('\n');
+                        console.log(`Multi-Agent found ${realPapers.length} papers with ${multiResult.patterns?.length || 0} patterns`);
+
+                        // Skip remaining SLR phases since multi-agent handles all at once
+                        return;
+                    } catch (multiError) {
+                        console.warn('Multi-Agent system failed, falling back to Python Agent:', multiError);
+                    }
                 }
 
                 // Use Python Agent if enabled (with LLM or regular search)
@@ -871,18 +918,41 @@ Examples:
 
                             {/* Python Agent Toggle */}
                             {pythonAgentAvailable && (
-                                <div className="mt-3 flex items-center gap-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                                    <Zap className="w-4 h-4 text-yellow-400" />
-                                    <span className="text-sm text-yellow-300">Python Agent Available</span>
-                                    <label className="ml-auto flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={usePythonAgent}
-                                            onChange={(e) => setUsePythonAgent(e.target.checked)}
-                                            className="w-4 h-4 rounded"
-                                        />
-                                        <span className="text-sm text-neutral-300">Use Enhanced NLP</span>
-                                    </label>
+                                <div className="mt-3 space-y-2">
+                                    <div className="flex items-center gap-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                                        <Zap className="w-4 h-4 text-yellow-400" />
+                                        <span className="text-sm text-yellow-300">Python Agent Available</span>
+                                        <label className="ml-auto flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={usePythonAgent}
+                                                onChange={(e) => {
+                                                    setUsePythonAgent(e.target.checked);
+                                                    if (e.target.checked) setUseMultiAgent(false);
+                                                }}
+                                                className="w-4 h-4 rounded"
+                                            />
+                                            <span className="text-sm text-neutral-300">LLM Search</span>
+                                        </label>
+                                    </div>
+
+                                    {/* Multi-Agent Toggle */}
+                                    <div className="flex items-center gap-3 p-2 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                                        <Network className="w-4 h-4 text-purple-400" />
+                                        <span className="text-sm text-purple-300">Multi-Agent (3-Tier)</span>
+                                        <label className="ml-auto flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={useMultiAgent}
+                                                onChange={(e) => {
+                                                    setUseMultiAgent(e.target.checked);
+                                                    if (e.target.checked) setUsePythonAgent(false);
+                                                }}
+                                                className="w-4 h-4 rounded"
+                                            />
+                                            <span className="text-sm text-neutral-300">Use DeepSeek+Gemini</span>
+                                        </label>
+                                    </div>
                                 </div>
                             )}
 

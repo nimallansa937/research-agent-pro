@@ -140,6 +140,62 @@ export const llmSearchWithPythonAgent = async (
 };
 
 /**
+ * Multi-Agent search (3-tier agent system)
+ * Uses Tier 1 (scripted), Tier 2 (Gemini), Tier 3 (DeepSeek)
+ * Returns papers with cross-cutting patterns and coverage analysis
+ */
+export interface MultiAgentResult {
+    query: string;
+    papers: PythonAgentPaper[];
+    patterns: {
+        name: string;
+        description: string;
+        insight: string;
+        confidence: number;
+        supporting_papers: number[];
+    }[];
+    statistics: {
+        total_papers: number;
+        patterns_found: number;
+        refinement_rounds: number;
+        elapsed_seconds: number;
+    };
+    decomposition: {
+        sub_questions: { question: string; priority: string }[];
+        dimensions: Record<string, string[]>;
+        baseline_query: string;
+    };
+    coverage: {
+        coverage_score: number;
+        dimensions: Record<string, Record<string, number>>;
+    };
+}
+
+export const multiAgentSearch = async (
+    query: string,
+    maxRounds: number = 3,
+    domain?: string
+): Promise<MultiAgentResult> => {
+    const params = new URLSearchParams({
+        query,
+        max_rounds: maxRounds.toString(),
+    });
+    if (domain) params.append('domain', domain);
+
+    const response = await fetch(`${PYTHON_API_URL}/multi-agent-search?${params}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+        throw new Error(error.detail || `Multi-Agent Search failed: ${response.status}`);
+    }
+
+    return response.json();
+};
+
+/**
  * Analyze a query (optionally with LLM)
  */
 export const analyzeQuery = async (query: string, useLLM: boolean = false): Promise<{
