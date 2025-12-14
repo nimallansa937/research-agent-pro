@@ -28,7 +28,7 @@ import { shouldSuggestEnhancement, ENHANCEMENT_THRESHOLD } from '../../services/
 import { saveFileToDrive, isAuthenticated as isDriveAuthenticated, loadDriveSettings } from '../../services/googleDriveService';
 import { saveResearch, generateTitleFromPrompt, ResearchItem } from '../../services/researchHistoryService';
 import { runGoogleDeepResearch, DeepResearchStatus } from '../../services/googleDeepResearchService';
-import { isPythonAgentAvailable, searchWithPythonAgent, getFormattedOutput } from '../../services/pythonAgentService';
+import { isPythonAgentAvailable, searchWithPythonAgent, llmSearchWithPythonAgent, getFormattedOutput } from '../../services/pythonAgentService';
 import { useAuth } from '../../contexts/AuthContext';
 import ReportViewer from '../report/ReportViewer';
 import PromptEnhancementDialog from './PromptEnhancementDialog';
@@ -247,8 +247,42 @@ const DeepResearch: React.FC = () => {
                     currentSearchQuery = searchVariants[phase.id] || researchPrompt;
                 }
 
-                realPapers = await searchAllAcademicSources(currentSearchQuery, 25);
-                papersContext = formatPapersForPrompt(realPapers);
+                // Use Python Agent if enabled (with LLM or regular search)
+                if (usePythonAgent && pythonAgentAvailable) {
+                    console.log(`Using Python Agent (LLM-powered) for ${phase.id}`);
+                    try {
+                        const pythonResult = await llmSearchWithPythonAgent(currentSearchQuery, 25, 30);
+                        // Convert Python papers to our format
+                        realPapers = pythonResult.papers.map(p => ({
+                            paperId: p.paper_id || p.doi || `py-${Date.now()}`,
+                            title: p.title,
+                            authors: p.authors || [],
+                            year: p.year,
+                            abstract: p.abstract || '',
+                            doi: p.doi,
+                            url: p.url || (p.doi ? `https://doi.org/${p.doi}` : ''),
+                            citationCount: p.citation_count || 0,
+                            venue: '',
+                            source: p.source || 'python-agent',
+                            qualityScore: p.llm_relevance_score ? p.llm_relevance_score / 100 : (p.quality_score || 0.5),
+                            verified: true
+                        })) as ScoredPaper[];
+                        papersContext = `## Python Agent Results (LLM-Scored)\n\n` +
+                            pythonResult.papers.slice(0, 15).map((p, i) =>
+                                `[${i + 1}] ${p.authors?.[0] || 'Unknown'} (${p.year}). ${p.title}. ` +
+                                `[Relevance: ${p.llm_relevance_score || 'N/A'}%] DOI: ${p.doi || 'N/A'}`
+                            ).join('\n');
+                        console.log(`Python Agent found ${realPapers.length} papers with LLM scoring`);
+                    } catch (pyError) {
+                        console.warn('Python Agent failed, falling back to TypeScript:', pyError);
+                        realPapers = await searchAllAcademicSources(currentSearchQuery, 25);
+                        papersContext = formatPapersForPrompt(realPapers);
+                    }
+                } else {
+                    // Use TypeScript implementation
+                    realPapers = await searchAllAcademicSources(currentSearchQuery, 25);
+                    papersContext = formatPapersForPrompt(realPapers);
+                }
                 console.log(`Found ${realPapers.length} real papers for ${phase.id} using: ${currentSearchQuery}`);
             } catch (error) {
                 console.error('Academic search failed, falling back to LLM:', error);
