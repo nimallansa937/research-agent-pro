@@ -102,6 +102,15 @@ const DEFAULT_PHASES: Omit<ResearchPhase, 'status' | 'output'>[] = [
     }
 ];
 
+const QUALITY_CONSTRAINTS = `
+CRITICAL RESEARCH STANDARDS (NON-NEGOTIABLE):
+1. Source Quality: Use ONLY Tier 1 (Verified Journals/Conferences) or Tier 2 (ArXiv/SSRN/Institutional Reports). Reject blogs, news sites (unless for factual timelines), and Wikipedia.
+2. Citation Style: All citations must be strictly APA 7th Edition.
+3. Empirical Rigor: Distinguish clearly between "Theoretical Models" and "Empirical Data". Do not conflate them.
+4. Metrics: Use standard financial/scientific notation.
+5. Hallucination Policy: If exact data is found, cite it. If not, state "Data unavailable" - DO NOT fabricate numbers.
+`;
+
 const DeepResearch: React.FC = () => {
     const { user } = useAuth();
     const [prompt, setPrompt] = useState('');
@@ -197,7 +206,7 @@ const DeepResearch: React.FC = () => {
 
         // Include attachment context in the first phase
         const attachmentContext = phaseIndex === 0 ? buildAttachmentContext() : '';
-        const fullPrompt = researchPrompt + attachmentContext;
+        const fullPrompt = researchPrompt + attachmentContext + '\\n\\n' + QUALITY_CONSTRAINTS;
 
         // For Phase 1 batches (slr1-slr4), fetch REAL papers from academic APIs
         const isLiteraturePhase = ['slr1', 'slr2', 'slr3', 'slr4'].includes(phase.id);
