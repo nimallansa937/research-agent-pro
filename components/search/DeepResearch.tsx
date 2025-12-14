@@ -36,6 +36,7 @@ import ResearchHistory from './ResearchHistory';
 import AttachmentInput from './AttachmentInput';
 import AttachmentAnalysisDialog from './AttachmentAnalysisDialog';
 import ThinkingActivity from './ThinkingActivity';
+import MultiAgentVisualization from './MultiAgentVisualization';
 import { Attachment } from '../../types';
 
 interface ResearchPhase {
@@ -133,7 +134,9 @@ const DeepResearch: React.FC = () => {
     const [searchThemes, setSearchThemes] = useState<string[]>([]);
     const [usePythonAgent, setUsePythonAgent] = useState(false);
     const [useMultiAgent, setUseMultiAgent] = useState(false); // Multi-agent 3-tier system
-    const [multiAgentPatterns, setMultiAgentPatterns] = useState<{ name: string; insight: string; confidence: number }[]>([]);
+    const [multiAgentPatterns, setMultiAgentPatterns] = useState<{ name: string; insight: string; confidence: number; supporting_papers?: number[] }[]>([]);
+    const [multiAgentCoverage, setMultiAgentCoverage] = useState<{ coverage_score: number; dimensions?: Record<string, Record<string, number>> } | null>(null);
+    const [multiAgentStats, setMultiAgentStats] = useState<{ total_papers: number; elapsed_seconds: number } | null>(null);
     const [pythonAgentAvailable, setPythonAgentAvailable] = useState(false);
     const outputRef = useRef<HTMLDivElement>(null);
 
@@ -275,8 +278,20 @@ const DeepResearch: React.FC = () => {
                             setMultiAgentPatterns(multiResult.patterns.map(p => ({
                                 name: p.name,
                                 insight: p.insight,
-                                confidence: p.confidence
+                                confidence: p.confidence,
+                                supporting_papers: p.supporting_papers
                             })));
+                        }
+
+                        // Store coverage and stats for visualization
+                        if (multiResult.coverage) {
+                            setMultiAgentCoverage(multiResult.coverage);
+                        }
+                        if (multiResult.statistics) {
+                            setMultiAgentStats({
+                                total_papers: multiResult.statistics.total_papers,
+                                elapsed_seconds: multiResult.statistics.elapsed_seconds
+                            });
                         }
 
                         papersContext = `## Multi-Agent Research Results (${realPapers.length} papers)\n\n` +
@@ -1094,11 +1109,25 @@ Examples:
                                     </p>
                                 </div>
                             ) : finalReport ? (
-                                <ReportViewer
-                                    content={phases.map(p => p.output || '').join('\n\n---\n\n')}
-                                    title={prompt.slice(0, 100) + (prompt.length > 100 ? '...' : '')}
-                                    generatedAt={new Date().toLocaleString()}
-                                />
+                                <div className="space-y-6">
+                                    {/* Multi-Agent Visualization (if patterns exist) */}
+                                    {multiAgentPatterns.length > 0 && (
+                                        <div className="px-6 pt-6">
+                                            <MultiAgentVisualization
+                                                patterns={multiAgentPatterns}
+                                                coverage={multiAgentCoverage || undefined}
+                                                totalPapers={multiAgentStats?.total_papers || 0}
+                                                elapsedTime={multiAgentStats?.elapsed_seconds}
+                                            />
+                                        </div>
+                                    )}
+
+                                    <ReportViewer
+                                        content={phases.map(p => p.output || '').join('\n\n---\n\n')}
+                                        title={prompt.slice(0, 100) + (prompt.length > 100 ? '...' : '')}
+                                        generatedAt={new Date().toLocaleString()}
+                                    />
+                                </div>
                             ) : (
                                 <div className="p-6">
                                     {phases.map((phase, idx) => (
