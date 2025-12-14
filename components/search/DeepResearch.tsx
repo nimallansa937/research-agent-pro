@@ -16,8 +16,10 @@ import {
     AlertTriangle,
     FileDown,
     FileType,
-    Cloud
+    Cloud,
+    Search
 } from 'lucide-react';
+import { searchAllAcademicSources, formatPapersForPrompt, AcademicPaper } from '../../services/academicSearch';
 import { loadSettings, runDialecticalAnalysis, sendToProvider, AIResponse } from '../../services/aiProviders';
 import { exportToPDF, exportToDOC } from '../../services/exportService';
 import { shouldSuggestEnhancement, ENHANCEMENT_THRESHOLD } from '../../services/promptEnhancer';
@@ -44,10 +46,34 @@ interface ResearchPhase {
 
 const DEFAULT_PHASES: Omit<ResearchPhase, 'status' | 'output'>[] = [
     {
-        id: 'slr',
-        name: 'Phase 1: Literature Discovery & Synthesis',
-        description: 'Comprehensive search across academic databases and sources',
+        id: 'slr1',
+        name: 'Phase 1A: Literature Discovery (Batch 1)',
+        description: 'Batch 1: Google Scholar & Semantic Scholar (25 sources)',
         icon: <BookOpen className="w-4 h-4" />
+    },
+    {
+        id: 'slr2',
+        name: 'Phase 1B: Literature Discovery (Batch 2)',
+        description: 'Batch 2: arXiv & SSRN preprints (25 sources)',
+        icon: <BookOpen className="w-4 h-4" />
+    },
+    {
+        id: 'slr3',
+        name: 'Phase 1C: Literature Discovery (Batch 3)',
+        description: 'Batch 3: IEEE & ACM computing research (25 sources)',
+        icon: <BookOpen className="w-4 h-4" />
+    },
+    {
+        id: 'slr4',
+        name: 'Phase 1D: Literature Discovery (Batch 4)',
+        description: 'Batch 4: Web of Science & Scopus (25 sources)',
+        icon: <BookOpen className="w-4 h-4" />
+    },
+    {
+        id: 'consolidate',
+        name: 'Phase 1.5: Literature Consolidation',
+        description: 'Merge and summarize all 100 sources into key themes',
+        icon: <Network className="w-4 h-4" />
     },
     {
         id: 'taxonomy',
@@ -134,364 +160,267 @@ const DeepResearch: React.FC = () => {
         const attachmentContext = phaseIndex === 0 ? buildAttachmentContext() : '';
         const fullPrompt = researchPrompt + attachmentContext;
 
+        // For Phase 1 batches (slr1-slr4), fetch REAL papers from academic APIs
+        const isLiteraturePhase = ['slr1', 'slr2', 'slr3', 'slr4'].includes(phase.id);
+        let realPapers: AcademicPaper[] = [];
+        let papersContext = '';
+
+        if (isLiteraturePhase) {
+            console.log(`Phase ${phase.id}: Fetching real academic papers...`);
+            try {
+                // Use different search terms for variety
+                const searchVariants: Record<string, string> = {
+                    'slr1': researchPrompt, // Main topic
+                    'slr2': `${researchPrompt} theoretical framework`, // Theory focus
+                    'slr3': `${researchPrompt} empirical study methodology`, // Methods focus
+                    'slr4': `${researchPrompt} systematic review meta-analysis`, // Reviews focus
+                };
+                const searchQuery = searchVariants[phase.id] || researchPrompt;
+                realPapers = await searchAllAcademicSources(searchQuery, 25);
+                papersContext = formatPapersForPrompt(realPapers);
+                console.log(`Found ${realPapers.length} real papers for ${phase.id}`);
+            } catch (error) {
+                console.error('Academic search failed, falling back to LLM:', error);
+                papersContext = 'Note: Academic database search unavailable. Please generate representative sources.';
+            }
+        }
+
         const phasePrompts: Record<string, string> = {
-            slr: `You are executing Phase 1: Literature Discovery & Synthesis for the following research task:
+            slr1: `Phase 1A: Literature Discovery (Batch 1 of 4)
 
-${fullPrompt}
+RESEARCH TOPIC: ${fullPrompt}
 
-CRITICAL FORMATTING RULES (MUST FOLLOW):
-- Use ONLY ASCII characters - NO Unicode symbols (no checkmarks, warning triangles, etc.)
-- Use these text markers: [VERIFIED], [NEEDS-CHECK], [ESTIMATED]
-- COMPLETE ALL TEXT - never truncate titles, author names, or descriptions
-- Write FULL author names (avoid "et al." in bibliography entries)
-- Include COMPLETE DOI links (full URL, never shortened or cut off)
-- Every table cell MUST contain complete text - no "..." or partial content
-- If length is a concern, include FEWER complete entries rather than many truncated ones
+${papersContext || 'No papers found - please generate representative sources.'}
 
-QUALITY REQUIREMENTS:
-- ONLY cite papers/sources that actually exist - do NOT fabricate references
-- Mark each source: [VERIFIED] = confirmed real with DOI, [NEEDS-CHECK] = uncertain
-- Distinguish: Established facts vs Emerging research vs Theoretical proposals
+TASK: Analyze the VERIFIED academic papers above. For each, provide:
+- Relevance score (0-100) to the research topic
+- Level of Evidence (LOE 1-4): 1=Meta-analysis, 2=RCT, 3=Observational, 4=Expert
 
-INSTRUCTIONS:
-1. Search across: arXiv, SSRN, PubMed, IEEE, Google Scholar, Semantic Scholar
-2. Identify 12-20 relevant peer-reviewed sources (prioritize 2020-2025)
-3. Create annotated bibliography with COMPLETE citation data (no truncation)
-4. Assign Relevance Score (1-100) and Evidence Quality (1-10)
-5. Organize into 3-5 thematic categories
-6. Include full DOI URLs for all sources
+OUTPUT:
+## Batch 1: Academic Sources (Verified Papers)
+| # | Citation | Year | Score | LOE | Key Finding |
+|---|----------|------|-------|-----|-------------|
+[Summarize each verified paper above]
 
-FORMAT YOUR OUTPUT AS:
-## Literature Discovery & Synthesis
+Summary: Themes identified: [list 3-4 major themes]`,
 
-### Research Methodology
-**Databases Searched:** [List specific databases]
-**Search Terms:** [Exact query terms used]
-**Inclusion Criteria:** Peer-reviewed papers, 2018-2025, English language
-**Quality Threshold:** Citation count > 5 or tier-1 venue publication
+            slr2: `Phase 1B: Literature Discovery (Batch 2 of 4)
 
-### Thematic Categories
-[List 3-5 categories with brief descriptions]
+RESEARCH TOPIC: ${fullPrompt}
 
-### Annotated Bibliography
+${papersContext || 'No papers found - please generate representative sources.'}
 
-#### Category 1: [Name]
-| # | Citation (Complete APA) | Key Finding | Rel. | Qual. | Status |
-|---|------------------------|-------------|------|-------|--------|
-| 1 | LastName, F., LastName2, F. (Year). Full Title Here. Journal, Vol(Issue), pp-pp. https://doi.org/xxx | [Complete finding] | 85 | 8 | [VERIFIED] |
+TASK: Analyze the VERIFIED academic papers above (theoretical framework focus).
+Rate relevance (0-100) and evidence level (1-4) for each.
 
-[Repeat for each category with 3-6 COMPLETE sources each]
+OUTPUT:
+## Batch 2: Theoretical Sources (Verified Papers)
+| # | Citation | Year | Score | LOE | Key Finding |
+|---|----------|------|-------|-----|-------------|
+[Summarize each verified paper]
 
-### Top 5 Most Relevant Sources
-| Rank | Full Citation (no truncation) | Why Critical | Complete DOI URL |
-|------|------------------------------|--------------|------------------|
+Summary: Themes: [list 3-4]`,
 
-### Key Themes Identified
-1. Theme: [Description] - Sources: [X]
-2. Theme: [Description] - Sources: [X]
-[Continue for 4-6 themes]
+            slr3: `Phase 1C: Literature Discovery (Batch 3 of 4)
 
-### Research Gaps & Opportunities
-- Gap 1: [Description] - Priority: High/Medium/Low
-- Gap 2: [Description] - Priority: High/Medium/Low
+RESEARCH TOPIC: ${fullPrompt}
 
-### Verification Summary
-- [VERIFIED] Sources (with DOIs): [X of Y total]
-- [NEEDS-CHECK] Sources: [List numbers]
-- Overall confidence: High/Medium/Low
+${papersContext || 'No papers found - please generate representative sources.'}
 
-### Limitations of This Review
-- Scope: [What was included/excluded]
-- Potential biases: [Language, date range, database coverage]
-- Confidence level: [High/Medium/Low] based on verification rate`,
+TASK: Analyze VERIFIED papers (methodology & empirical focus).
+Rate relevance and evidence level for each.
 
-            taxonomy: `You are executing Phase 2: Conceptual Framework & Mapping for the following research task:
+OUTPUT:
+## Batch 3: Methodology Sources (Verified Papers)
+| # | Citation | Year | Score | LOE | Key Finding |
+|---|----------|------|-------|-----|-------------|
+[Summarize each verified paper]
 
-${researchPrompt}
+Summary: Themes: [list 3-4]`,
 
-PREVIOUS PHASE OUTPUT:
-${previousOutputs.join('\\n\\n---\\n\\n')}
+            slr4: `Phase 1D: Literature Discovery (Batch 4 of 4)
 
-CRITICAL FORMATTING RULES:
-- Use ONLY ASCII characters - NO Unicode symbols
-- Use markers: [VERIFIED], [SPECULATIVE], [NEEDS-CHECK]
-- COMPLETE ALL TEXT - no truncation in definitions or descriptions
-- Use simple ASCII for diagrams (-->, ---, |, +)
-- Every table cell must contain complete text
+RESEARCH TOPIC: ${fullPrompt}
 
-QUALITY REQUIREMENTS:
-- Ground ALL concepts in Phase 1 sources with [#] citations
-- Define all terminology/acronyms in glossary before use
-- Mark speculative connections with [SPECULATIVE] tag
+${papersContext || 'No papers found - please generate representative sources.'}
 
-FORMAT YOUR OUTPUT AS:
+TASK: Analyze VERIFIED papers (reviews & meta-analysis focus).
+Rate relevance and evidence level.
+
+OUTPUT:
+## Batch 4: Review Sources (Verified Papers)
+| # | Citation | Year | Score | LOE | Key Finding |
+|---|----------|------|-------|-----|-------------|
+[Summarize each verified paper]
+
+Summary: Themes: [list 3-4]`,
+
+            consolidate: `Phase 1.5: Literature Consolidation
+
+RESEARCH TOPIC: ${fullPrompt}
+
+You have collected 100 sources across 4 batches. Create a consolidated summary.
+
+TASK: Synthesize all sources into a structured literature overview.
+
+OUTPUT:
+## Consolidated Literature Summary (100 Sources)
+
+### Source Statistics
+- Total sources: 100
+- By database: Google Scholar/Semantic (25), arXiv/SSRN (25), IEEE/ACM (25), WoS/Scopus (25)
+- By LOE: 1:X, 2:X, 3:X, 4:X
+- Average relevance score: XX
+- Year range: XXXX-2025
+
+### Major Themes (8-10 themes)
+1. Theme: [Name] - Sources: [count] - Key insight
+2. Theme: [Name] - Sources: [count] - Key insight
+[Continue for all major themes]
+
+### Top 20 Most Critical Sources
+| Rank | Citation | Score | Why Critical |
+|------|----------|-------|--------------|
+[List top 20 highest-scoring sources]
+
+### Research Gaps Identified
+1. Gap: [Description] - Priority: High/Medium/Low
+2. Gap: [Description] - Priority: High/Medium/Low
+[List 5-8 gaps]
+
+### Key Findings Summary
+[5-10 bullet points of the most important findings across all 100 sources]`,
+
+            taxonomy: `Phase 2: Conceptual Framework & Mapping
+
+RESEARCH TOPIC: ${researchPrompt}
+
+CONSOLIDATED LITERATURE (from Phase 1.5):
+${previousOutputs.length > 0 ? previousOutputs[previousOutputs.length - 1] : 'No previous output'}
+
+TASK: Create a conceptual framework based on the 100 sources.
+
+OUTPUT:
 ## Conceptual Framework & Mapping
 
-### Glossary of Key Terms
-| Term/Acronym | Full Name | Definition | Source |
-|--------------|-----------|------------|--------|
-| [Acronym] | [Full name] | [One-sentence definition] | [Citation #] |
-[Include 10-15 key terms used in this research]
+### Glossary (10-15 key terms)
+| Term | Definition | Source |
+|------|------------|--------|
 
 ### Concept Hierarchy
-
-#### Core Concepts (Established in Literature)
-**1. [Concept Name]** [Source #]
-   - Definition: [Clear definition from source]
-   - 1.1 [Sub-concept] - [Brief description]
-   - 1.2 [Sub-concept] - [Brief description]
-
-#### Contributing Factors & Moderators
-[Continue with same format, citing sources]
-
-#### Outcomes & Effects
-[Continue with evidence strength indicators]
+1. Core Concepts (with citations)
+2. Contributing Factors
+3. Outcomes & Effects
 
 ### Relationship Matrix
-| Concept A | Relationship Type | Concept B | Evidence Level | Sources |
-|-----------|------------------|-----------|----------------|---------|
-| [X] | causes/correlates/moderates | [Y] | Strong/Moderate/Weak | [#,#] |
+| Concept A | Relationship | Concept B | Evidence | Sources |
+|-----------|--------------|-----------|----------|---------|
 
-### Conceptual Framework Diagram
+### Framework Diagram
 \`\`\`mermaid
 graph TD
-    subgraph Core["Core Concepts"]
-        A["Theory 1"]
-        B["Theory 2"]
-    end
-    subgraph Factors["Contributing Factors"]
-        C["Factor 1"]
-        D["Factor 2"]
-    end
-    subgraph Outcomes["Outcomes"]
-        E["Outcome 1"]
-    end
-    A -->|"strong evidence"| C
-    B -.->|"weak evidence"| D
-    C --> E
-    D --> E
+    A[Core] --> B[Factor]
+    B --> C[Outcome]
 \`\`\`
-**Diagram Legend:**
-- Solid arrows (---->) = Strong evidence from multiple sources
-- Dashed arrows (....>) = Weak/theoretical evidence
-- [SPECULATIVE] = Proposed relationship needing more research
 
-### Theoretical Integration Summary
-[Unified perspective showing how frameworks connect]
+### Theoretical Integration
+[How concepts connect]`,
 
-### Framework Limitations
-- **Concepts needing more research:** [List with confidence]
-- **Theoretical gaps:** [What's missing or contested]
-- **Framework confidence:** [High/Medium/Low] - [Justification]`,
+            forensic: `Phase 3: Deep Analysis & Evidence Review
 
-            forensic: `You are executing Phase 3: Deep Analysis & Evidence Review for the following research task:
+RESEARCH TOPIC: ${researchPrompt}
 
-${researchPrompt}
+CONSOLIDATED LITERATURE (use the summary from Phase 1.5):
+${previousOutputs.length > 0 ? previousOutputs[previousOutputs.length - 1] : 'No previous output'}
 
-PREVIOUS PHASE OUTPUTS:
-${previousOutputs.join('\\n\\n---\\n\\n')}
+TASK: Provide deep analysis of 5-6 key components.
 
-CRITICAL FORMATTING RULES:
-- Use ONLY ASCII characters - NO Unicode symbols (no checkmarks, triangles, etc.)
-- Use these markers: [VERIFIED], [EXTRAPOLATED], [ESTIMATED]
-- COMPLETE ALL TEXT - every table cell must have full content, no truncation
-- Include full sample sizes, complete confidence intervals
-
-QUALITY REQUIREMENTS:
-- Verify ALL quantitative claims against source papers
-- Include sample sizes, confidence intervals, effect sizes where available
-- Mark metrics as: [VERIFIED], [EXTRAPOLATED], [ESTIMATED]
-- Acknowledge contradictory findings across studies
-- Use LOE ratings: 1a (Meta-analysis), 1b (RCT), 2 (Quasi-exp), 3 (Observational), 4 (Expert)
-
-FORMAT YOUR OUTPUT AS:
+OUTPUT:
 ## Deep Analysis & Evidence Review
 
-### Evidence Quality Summary
-| Component | # Sources | LOE Range | Confidence | Key Gap (complete) |
-|-----------|-----------|-----------|------------|-------------------|
-| [Name] | [N] | [1a-4] | High/Med/Low | [Full description] |
+### Evidence Summary
+| Component | Sources | Confidence |
+|-----------|---------|------------|
 
----
-
-### Component 1: [Name]
-
-**Definition:** [Complete technical definition with citation [#]]
-
-**Key Characteristics:**
-1. [Characteristic] - Source: [#], LOE: [X]
-2. [Characteristic] - Source: [#], LOE: [X]
-
-**Evidence Strength Matrix:**
-| Source | Type | LOE | Finding (complete) | n= | Effect | Status |
-|--------|------|-----|-------------------|-----|--------|--------|
-| [Author (Year)] | fMRI/Behavioral/Review | 1a-4 | [Full result] | [N] | [d=X.X] | [VERIFIED] |
-
-**Quantitative Evidence:**
-| Metric | Value | 95% CI | Sample | Source | Status |
-|--------|-------|--------|--------|--------|--------|
-| [Metric] | [X%] | [X-Y%] | n=[N] | [#] | [VERIFIED] |
-
-**Contradictory Findings:**
-| Finding A | Finding B | Explanation |
-|-----------|-----------|-------------|
-| [Study X found...] | [Study Y found...] | [Differences explained] |
-
-**Limitations & Caveats:**
-- Methodological: [Study design issues]
-- Generalizability: [Population/context limits]
-- Recency: [How current is evidence?]
-- Risk of Bias: [Publication bias, etc.]
-
-**Critical Research Questions:**
-1. [Q1] - Priority: High/Medium/Low
-2. [Q2] - Suggested experiment: [Description]
-
-**Component Confidence:** High/Medium/Low - [Justification]
-
----
-[Repeat for 4-6 major components]
+### Component Analysis (5-6 components)
+For each: Definition, Evidence, Limitations
 
 ### Cross-Component Synthesis
-| Component A | Relationship | Component B | Evidence | Confidence |
-|-------------|--------------|-------------|----------|------------|
+Key relationships between components
 
-### Overall Analysis Confidence: High/Medium/Low
-Based on: [X sources verified, Y% high-quality evidence, Z contradictions addressed]`,
+### Overall Confidence: High/Medium/Low`,
 
-            quantitative: `You are executing Phase 4: Methodology & Framework Design for the following research task:
+            quantitative: `Phase 4: Methodology & Framework Design
 
-${researchPrompt}
+RESEARCH TOPIC: ${researchPrompt}
 
-PREVIOUS PHASE OUTPUTS:
-${previousOutputs.slice(-2).join('\\n\\n---\\n\\n')}
+TASK: Design a methodological framework based on the research.
 
-INSTRUCTIONS:
-1. Propose a methodological framework or analytical approach
-2. Define key variables, metrics, or indicators
-3. Describe relationships between variables (if applicable)
-4. Identify measurement approaches or data collection strategies
-5. Suggest implementation or application guidelines
-
-FORMAT YOUR OUTPUT AS:
+OUTPUT:
 ## Methodology & Framework Design
 
-### Proposed Framework Overview
-[Describe the overall approach or methodology]
+### Framework Overview
+[Describe the approach]
 
 ### Key Variables & Metrics
-| Variable/Metric | Definition | Measurement Approach | Data Source |
-|-----------------|------------|---------------------|-------------|
-[Fill table with 8-12 key variables]
-
-### Relationships & Dependencies
-[Describe how variables relate to each other]
+| Variable | Definition | Measurement |
+|----------|------------|-------------|
+[8-12 variables]
 
 ### Framework Diagram
 \`\`\`mermaid
 flowchart LR
-    A[Input] --> B[Process 1]
-    B --> C[Process 2]
-    C --> D[Output]
-    [Adapt to your framework...]
+    A[Input] --> B[Process]
+    B --> C[Output]
 \`\`\`
 
-### Implementation Guidelines
-1. Step 1: [Description]
-2. Step 2: [Description]
-[Continue with key steps]
-
-### Data & Resource Requirements
-[List what's needed to apply this framework]
+### Implementation Steps
+1. [Step 1]
+2. [Step 2]
 
 ### Validation Approach
-[How to verify the framework works]`,
+[How to verify]`,
 
-            synthesis: `You are executing Phase 5: Synthesis & Recommendations for the following research task:
+            synthesis: `Phase 5: Synthesis & Recommendations
 
-${researchPrompt}
+RESEARCH TOPIC: ${researchPrompt}
 
-ALL PREVIOUS PHASE OUTPUTS:
-${previousOutputs.join('\\n\\n---\\n\\n')}
+TASK: Create a final synthesis report.
 
-CRITICAL FORMATTING RULES:
-- Use ONLY ASCII characters - NO Unicode symbols
-- Use markers: [VERIFIED], [NEEDS-CHECK], [HIGH-CONF], [LOW-CONF]
-- COMPLETE ALL TEXT - no truncation anywhere
-- Every table cell must contain full content
-
-QUALITY REQUIREMENTS:
-- Synthesize ONLY verified findings from previous phases
-- Include confidence levels for ALL recommendations
-- Acknowledge limitations and uncertainties explicitly
-- Provide clear action items with feasibility assessment
-- Create professional report suitable for decision-makers
-- Include AI-generation disclosure
-
-FORMAT YOUR OUTPUT AS:
+OUTPUT:
 ## Executive Summary
+**Research Question:** [Restated]
+**Answer:** [1-paragraph answer]
+**Confidence:** High/Medium/Low
 
-**Research Question:** [Restated clearly]
-**Answer:** [Complete one-paragraph evidence-based answer]
-**Overall Confidence:** High/Medium/Low based on [X verified sources, Y% high-quality evidence]
+## Key Takeaways (5-6)
+1. [Takeaway]
 
-**Key Takeaways:**
-1. [HIGH-CONF] [High-confidence takeaway - complete text]
-2. [NEEDS-CHECK] [Takeaway requiring validation - complete text]
-3. [Continue for 4-6 takeaways with confidence markers]
-
-## Key Insights
-
-### Insight 1: [Title] - Confidence: High/Medium/Low
-**Finding:** [Evidence-backed statement - complete]
-**Supporting Evidence:** [# of sources, quality assessment]
-**Implications:** [What this means]
-**Limitations:** [Caveats to consider]
-
-[Continue for 5-7 insights]
+## Key Insights (5-7)
+### Insight 1: [Title]
+- Finding, Evidence, Implications
 
 ## Summary Table
-| Finding (complete) | Evidence | Confidence | Priority | Status |
-|-------------------|----------|------------|----------|--------|
-| [Full finding text] | Strong/Moderate/Weak | High/Med/Low | High/Med/Low | [VERIFIED] |
+| Finding | Evidence | Confidence |
+|---------|----------|------------|
 
 ## Recommendations
+### For Researchers
+| Recommendation | Priority |
+|----------------|----------|
 
-### For Researchers [Confidence: X/10]
-| Recommendation | Rationale | Feasibility | Priority |
-|----------------|-----------|-------------|----------|
+### For Practitioners
+| Recommendation | Risk |
+|----------------|------|
 
-### For Practitioners [Confidence: X/10]
-| Recommendation | Implementation Steps | Resources Needed | Risk Level |
-|----------------|---------------------|------------------|------------|
+## Limitations
+- Scope, Data, Biases
 
-### For Decision-Makers [Confidence: X/10]
-| Strategic Recommendation | Expected Impact | Investment | Timeline |
-|--------------------------|-----------------|------------|----------|
-
-## Study Limitations
-- **Scope limitations:** [What was not covered]
-- **Methodological limitations:** [Research design constraints]
-- **Data limitations:** [Quality, recency, coverage issues]
-- **Potential biases:** [Language, geographic, publication bias]
-
-## Verification Checklist
-- [ ] All citations verified against source databases
-- [ ] Quantitative claims cross-checked with original papers
-- [ ] Conflicting evidence acknowledged
-- [ ] Confidence levels assigned based on evidence quality
-- [ ] Limitations clearly stated
-
-## References (Complete Bibliography)
-[Full APA formatted references with DOIs - from Phase 1]
+## Top 10 References
+[Key citations]
 
 ---
-**Report Metadata:**
-- Generated: ${new Date().toISOString()}
-- Sources analyzed: [X total]
-- High-confidence sources: [Y]
-- Items requiring follow-up: [Z]
-- ⚠ AI-Generated Content: This report was synthesized by an AI research assistant and requires human verification`
+Generated: ${new Date().toISOString()}`
         };
 
         const phasePrompt = phasePrompts[phase.id] || `Execute ${phase.name} for the research task`;

@@ -40,27 +40,28 @@ export const PROVIDER_NAMES: Record<AIProvider, string> = {
     openai: 'OpenAI',
 };
 
-// Default settings
+// Default settings - Use Gemini as primary (DeepSeek quota exhausted)
 export const DEFAULT_SETTINGS: AISettings = {
-    primaryProvider: 'deepseek',
-    secondaryProvider: undefined,
-    dialecticalMode: false,
-    useGoogleDeepResearch: false,
+    primaryProvider: 'gemini',  // Use Gemini as primary (reliable, no quota issues)
+    secondaryProvider: undefined,  // Disable secondary to reduce API calls
+    dialecticalMode: false,  // Disable to reduce API usage
+    useGoogleDeepResearch: false,  // Disabled - Interactions API not available
     providers: {
         gemini: {
             apiKey: import.meta.env.VITE_GEMINI_API_KEY || '',
-            model: 'gemini-1.5-flash',
-            enabled: false
+            model: 'gemini-2.0-flash',
+            enabled: true
         },
         deepseek: {
-            apiKey: import.meta.env.VITE_DEEPSEEK_API_KEY || 'sk-29275de38df64487b2fe1ec52a8895ae',
-            model: 'deepseek-chat',
-            enabled: true
+            apiKey: import.meta.env.VITE_DEEPSEEK_API_KEY || '',  // Remove hardcoded key
+            model: 'deepseek-chat',  // Use chat model (more quota-friendly)
+            enabled: false  // Disabled by default due to quota issues
         },
         claude: { apiKey: '', model: 'claude-3-5-sonnet-20241022', enabled: false },
         openai: { apiKey: '', model: 'gpt-4o', enabled: false },
     },
 };
+
 
 // Storage key for settings
 const SETTINGS_KEY = 'researchAgent_aiSettings';
@@ -80,14 +81,38 @@ export const loadSettings = (): AISettings => {
         const stored = localStorage.getItem(SETTINGS_KEY);
         if (stored) {
             const parsed = JSON.parse(stored);
-            // Merge with defaults to handle any missing fields
+            // Deep merge providers to preserve individual provider settings
+            const mergedProviders = { ...DEFAULT_SETTINGS.providers };
+            for (const provider of Object.keys(DEFAULT_SETTINGS.providers) as AIProvider[]) {
+                mergedProviders[provider] = {
+                    ...DEFAULT_SETTINGS.providers[provider],
+                    ...(parsed.providers?.[provider] || {}),
+                };
+            }
+
+            // Determine primary provider based on available API keys
+            let primaryProvider: AIProvider = 'gemini';
+            if (mergedProviders.gemini.apiKey) {
+                primaryProvider = 'gemini';
+            } else if (mergedProviders.deepseek.apiKey) {
+                primaryProvider = 'deepseek';
+            } else if (mergedProviders.openai.apiKey) {
+                primaryProvider = 'openai';
+            } else if (mergedProviders.claude.apiKey) {
+                primaryProvider = 'claude';
+            }
+
             return {
                 ...DEFAULT_SETTINGS,
                 ...parsed,
-                providers: {
-                    ...DEFAULT_SETTINGS.providers,
-                    ...parsed.providers,
-                },
+                providers: mergedProviders,
+                // Force Gemini as primary if it has an API key, otherwise use what's available
+                primaryProvider: primaryProvider,
+                // Disable Google Deep Research - Interactions API not available
+                useGoogleDeepResearch: false,
+                // Disable dialectical mode to reduce API usage
+                dialecticalMode: false,
+                secondaryProvider: undefined,
             };
         }
     } catch (error) {
@@ -95,6 +120,7 @@ export const loadSettings = (): AISettings => {
     }
     return DEFAULT_SETTINGS;
 };
+
 
 // Helper to determine if we need CORS proxy (production only)
 const isDevelopment = (): boolean => {
@@ -138,9 +164,7 @@ class GeminiProvider implements IAIProvider {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    contents: [{
-                        parts: [{ text: message }]
-                    }]
+                    contents: [{ parts: [{ text: message }] }]
                 }),
             });
 
@@ -155,6 +179,45 @@ class GeminiProvider implements IAIProvider {
         } catch (error) {
             console.error("Gemini Fetch Error:", error);
             throw error;
+        }
+    }
+
+    // Send message with Google Search grounding enabled
+    async sendMessageWithSearch(message: string): Promise<{ content: string; groundingMetadata?: any }> {
+        // Use v1beta API for search grounding (required for tools)
+        const baseUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
+        const endpoint = withCorsProxy(baseUrl);
+
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: message }] }],
+                    tools: [{ google_search: {} }]  // Enable search grounding
+                }),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`Gemini Search API Error: Status=${response.status}, Error=${errorText}`);
+                // Fall back to regular message if search grounding fails
+                const fallback = await this.sendMessage(message);
+                return { content: fallback };
+            }
+
+            const data = await response.json();
+            const content = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated.';
+            const groundingMetadata = data.candidates?.[0]?.groundingMetadata;
+
+            return { content, groundingMetadata };
+        } catch (error) {
+            console.error("Gemini Search Fetch Error:", error);
+            // Fall back to regular message
+            const fallback = await this.sendMessage(message);
+            return { content: fallback };
         }
     }
 
@@ -184,26 +247,62 @@ class DeepSeekProvider implements IAIProvider {
         const baseUrl = 'https://api.deepseek.com/chat/completions';
         const endpoint = withCorsProxy(baseUrl);
 
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.apiKey}`,
-            },
-            body: JSON.stringify({
-                model: this.model,
-                messages: [{ role: 'user', content: message }],
-                stream: false,
-            }),
-        });
+        // Try with current model first
+        let modelToUse = this.model;
+        let attempts = 0;
+        const maxAttempts = 2;
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`DeepSeek API error: ${response.status} - ${errorText}`);
+        while (attempts < maxAttempts) {
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${this.apiKey}`,
+                    },
+                    body: JSON.stringify({
+                        model: modelToUse,
+                        messages: [{ role: 'user', content: message }],
+                        stream: false,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+
+                    // Check for quota/rate limit errors
+                    const isQuotaError = errorText.toLowerCase().includes('quota') ||
+                        errorText.toLowerCase().includes('rate limit') ||
+                        errorText.toLowerCase().includes('insufficient') ||
+                        response.status === 429 ||
+                        response.status === 402;
+
+                    // If using deepseek-reasoner and hit quota, fallback to deepseek-chat
+                    if (isQuotaError && modelToUse === 'deepseek-reasoner' && attempts === 0) {
+                        console.warn('DeepSeek Reasoner quota exceeded, falling back to deepseek-chat');
+                        modelToUse = 'deepseek-chat';
+                        attempts++;
+                        continue;
+                    }
+
+                    throw new Error(`DeepSeek API error: ${response.status} - ${errorText}`);
+                }
+
+                const data = await response.json();
+                return data.choices?.[0]?.message?.content || 'No response generated.';
+            } catch (error) {
+                if (attempts === 0 && modelToUse === 'deepseek-reasoner') {
+                    // Try with fallback model
+                    console.warn('DeepSeek Reasoner failed, falling back to deepseek-chat:', error);
+                    modelToUse = 'deepseek-chat';
+                    attempts++;
+                    continue;
+                }
+                throw error;
+            }
         }
 
-        const data = await response.json();
-        return data.choices?.[0]?.message?.content || 'No response generated.';
+        throw new Error('DeepSeek: Max retry attempts exceeded');
     }
 
     async testConnection(): Promise<boolean> {
@@ -213,6 +312,7 @@ class DeepSeekProvider implements IAIProvider {
         } catch (error) {
             console.error('DeepSeek connection test failed:', error);
             return false;
+
         }
     }
 }
@@ -340,6 +440,20 @@ export const sendToProvider = async (
         provider,
         model: config.model,
     };
+};
+
+// Send message to Gemini with Google Search grounding
+export const sendToGeminiWithSearch = async (
+    settings: AISettings,
+    message: string
+): Promise<{ content: string; groundingMetadata?: any }> => {
+    const config = settings.providers.gemini;
+    if (!config.apiKey) {
+        throw new Error('No API key configured for Google Gemini');
+    }
+
+    const provider = new GeminiProvider(config.apiKey, config.model);
+    return await provider.sendMessageWithSearch(message);
 };
 
 // Dialectical analysis - two models cross-validating

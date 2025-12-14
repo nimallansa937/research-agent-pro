@@ -40,6 +40,45 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': path.resolve(__dirname, '.'),
       }
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              // Firebase SDK
+              if (id.includes('firebase') || id.includes('@firebase')) {
+                return 'vendor-firebase';
+              }
+              // React core
+              if (id.includes('react-dom') || id.includes('react-router') || id.includes('scheduler')) {
+                return 'vendor-react';
+              }
+              // PDF processing
+              if (id.includes('pdfjs') || id.includes('react-pdf')) {
+                return 'vendor-pdf';
+              }
+              // Markdown
+              if (id.includes('react-markdown') || id.includes('remark') || id.includes('syntax-highlighter') || id.includes('refractor') || id.includes('prism')) {
+                return 'vendor-markdown';
+              }
+              // Charts
+              if (id.includes('recharts') || id.includes('d3-')) {
+                return 'vendor-charts';
+              }
+              // Canvas and image processing
+              if (id.includes('html2canvas') || id.includes('canvas')) {
+                return 'vendor-canvas';
+              }
+              // UI utilities
+              if (id.includes('lucide') || id.includes('framer-motion')) {
+                return 'vendor-ui';
+              }
+            }
+          }
+        }
+      },
+      chunkSizeWarningLimit: 600
     }
   };
 });
