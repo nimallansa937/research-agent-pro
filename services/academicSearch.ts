@@ -21,6 +21,71 @@ export interface SearchResult {
     source: string;
 }
 
+// Extended paper interface with quality scoring
+export interface ScoredPaper extends AcademicPaper {
+    qualityScore: number;
+    verified: boolean;
+}
+
+// ============================================
+// TIER 1: QUERY DECOMPOSITION & SYNONYMS
+// ============================================
+
+// Common research synonyms for query expansion
+const RESEARCH_SYNONYMS: Record<string, string[]> = {
+    'liquidation': ['deleveraging', 'forced selling', 'margin call', 'position closure'],
+    'cascade': ['contagion', 'spillover', 'domino effect', 'systemic failure', 'chain reaction'],
+    'cryptocurrency': ['crypto', 'digital asset', 'blockchain', 'DeFi', 'decentralized finance'],
+    'mechanisms': ['drivers', 'causes', 'factors', 'dynamics', 'processes'],
+    'risk': ['vulnerability', 'exposure', 'hazard', 'threat'],
+    'market': ['exchange', 'trading', 'financial'],
+    'protocol': ['smart contract', 'platform', 'system'],
+    'analysis': ['study', 'research', 'investigation', 'examination'],
+    'impact': ['effect', 'consequence', 'outcome', 'result'],
+    'model': ['framework', 'theory', 'approach', 'methodology']
+};
+
+/**
+ * TIER 1: Decompose a research query into multiple search variations
+ * Breaks complex queries into component searches with synonyms
+ */
+export const decomposeQuery = (originalQuery: string): string[] => {
+    const queries: string[] = [];
+    const words = originalQuery.toLowerCase().split(/\s+/);
+
+    // 1. Original query (exact)
+    queries.push(originalQuery);
+
+    // 2. Generate synonym variations
+    for (const [term, synonyms] of Object.entries(RESEARCH_SYNONYMS)) {
+        if (originalQuery.toLowerCase().includes(term)) {
+            for (const syn of synonyms.slice(0, 2)) { // Limit to 2 synonyms per term
+                queries.push(originalQuery.toLowerCase().replace(term, syn));
+            }
+        }
+    }
+
+    // 3. Core concept pairs (for broader search)
+    if (words.length >= 3) {
+        // Take first and last significant words
+        queries.push(`${words[0]} ${words[words.length - 1]}`);
+        // Take middle concepts
+        if (words.length >= 4) {
+            queries.push(`${words[1]} ${words[2]}`);
+        }
+    }
+
+    // 4. Add methodological variations
+    queries.push(`${originalQuery} systematic review`);
+    queries.push(`${originalQuery} empirical study`);
+
+    // 5. Deduplicate and limit
+    const unique = [...new Set(queries)];
+    console.log(`Query decomposition: Generated ${unique.length} variations from "${originalQuery}"`);
+
+    return unique.slice(0, 8); // Limit to 8 variations
+};
+
 // CORS proxy for production
 const withCorsProxy = (url: string): string => {
     const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -231,6 +296,92 @@ export const verifyCitation = async (doi: string): Promise<boolean> => {
     }
 };
 
+// ============================================
+// TIER 3: QUALITY SCORING & VERIFICATION
+// ============================================
+
+/**
+ * Score a paper's quality based on multiple factors
+ * Returns score from 0.0 to 1.0
+ */
+export const scorePaperQuality = (paper: AcademicPaper): number => {
+    let score = 0.0;
+
+    // 1. DOI presence (0.2 points)
+    if (paper.doi) {
+        score += 0.2;
+    }
+
+    // 2. Citation count (0.3 points max)
+    const citations = paper.citationCount || 0;
+    if (citations >= 100) {
+        score += 0.3;
+    } else if (citations >= 50) {
+        score += 0.25;
+    } else if (citations >= 10) {
+        score += 0.15;
+    } else if (citations >= 1) {
+        score += 0.05;
+    }
+
+    // 3. Venue quality (0.2 points)
+    const venue = (paper.venue || '').toLowerCase();
+    const topVenues = ['nature', 'science', 'ieee', 'acm', 'journal', 'conference', 'proceedings'];
+    if (topVenues.some(v => venue.includes(v))) {
+        score += 0.2;
+    } else if (venue && venue !== 'arxiv preprint') {
+        score += 0.1;
+    }
+
+    // 4. Recency (0.15 points)
+    const currentYear = new Date().getFullYear();
+    const age = currentYear - (paper.year || 0);
+    if (age <= 2) {
+        score += 0.15; // Very recent
+    } else if (age <= 5) {
+        score += 0.1;  // Recent
+    } else if (age <= 10) {
+        score += 0.05; // Somewhat recent
+    }
+
+    // 5. Abstract presence (0.1 points)
+    if (paper.abstract && paper.abstract.length > 100) {
+        score += 0.1;
+    }
+
+    // 6. Author presence (0.05 points)
+    if (paper.authors && paper.authors.length > 0) {
+        score += 0.05;
+    }
+
+    return Math.min(score, 1.0); // Cap at 1.0
+};
+
+/**
+ * Filter and score papers, rejecting low-quality ones
+ * Returns only papers that meet quality threshold
+ */
+export const filterAndScorePapers = (
+    papers: AcademicPaper[],
+    minQualityScore: number = 0.3
+): ScoredPaper[] => {
+    const scoredPapers: ScoredPaper[] = papers.map(paper => ({
+        ...paper,
+        qualityScore: scorePaperQuality(paper),
+        verified: !!paper.doi // Considered verified if DOI exists
+    }));
+
+    // Filter by quality threshold
+    const filtered = scoredPapers.filter(p => p.qualityScore >= minQualityScore);
+
+    // Sort by quality score (descending)
+    filtered.sort((a, b) => b.qualityScore - a.qualityScore);
+
+    console.log(`Quality filter: ${filtered.length}/${papers.length} papers passed (threshold: ${minQualityScore})`);
+
+    return filtered;
+};
+
 /**
  * Format a paper as APA citation
  */
@@ -260,56 +411,156 @@ export const formatPaperForLLM = (paper: AcademicPaper, index: number): string =
     return `[${index + 1}] ${citation}${citations}${abstract}`;
 };
 
-/**
- * Search all academic sources and combine results
- */
-export const searchAllAcademicSources = async (
-    query: string,
-    limitPerSource: number = 15
-): Promise<AcademicPaper[]> => {
-    console.log(`Searching academic sources for: "${query}"`);
+// ============================================
+// TIER 4: ITERATIVE SEARCH REFINEMENT
+// ============================================
 
-    // Search all sources in parallel
+/**
+ * Search a single query across all sources
+ * Internal helper for iterative search
+ */
+const searchSingleQuery = async (
+    query: string,
+    limitPerSource: number = 10
+): Promise<AcademicPaper[]> => {
     const [semanticResult, openAlexResult, arxivResult] = await Promise.all([
         searchSemanticScholar(query, limitPerSource),
         searchOpenAlex(query, limitPerSource),
         searchArxiv(query, limitPerSource)
     ]);
 
-    // Combine and deduplicate by DOI
+    return [
+        ...semanticResult.papers,
+        ...openAlexResult.papers,
+        ...arxivResult.papers
+    ];
+};
+
+/**
+ * TIER 4: Search all academic sources with ITERATIVE REFINEMENT
+ * If initial search returns < minResults, automatically broadens query and retries
+ */
+export const searchAllAcademicSources = async (
+    query: string,
+    limitPerSource: number = 15,
+    minResults: number = 20
+): Promise<ScoredPaper[]> => {
+    console.log(`[TIER 4] Starting iterative search for: "${query}"`);
+
     const seen = new Set<string>();
-    const combined: AcademicPaper[] = [];
+    const allPapers: AcademicPaper[] = [];
 
     const addPapers = (papers: AcademicPaper[]) => {
         for (const paper of papers) {
-            const key = paper.doi || paper.title.toLowerCase();
+            const key = paper.doi || paper.title.toLowerCase().slice(0, 50);
             if (!seen.has(key)) {
                 seen.add(key);
-                combined.push(paper);
+                allPapers.push(paper);
             }
         }
     };
 
-    addPapers(semanticResult.papers);
-    addPapers(openAlexResult.papers);
-    addPapers(arxivResult.papers);
+    // ATTEMPT 1: Original query + decomposed variations
+    const decomposedQueries = decomposeQuery(query);
+    console.log(`[ATTEMPT 1] Searching ${decomposedQueries.length} query variations...`);
 
-    // Sort by citation count (most cited first)
-    combined.sort((a, b) => (b.citationCount || 0) - (a.citationCount || 0));
+    for (const q of decomposedQueries.slice(0, 4)) { // First 4 variations
+        const papers = await searchSingleQuery(q, Math.ceil(limitPerSource / 2));
+        addPapers(papers);
 
-    console.log(`Found ${combined.length} unique papers from academic sources`);
-    return combined;
+        // Early exit if we have enough
+        if (allPapers.length >= minResults * 2) {
+            console.log(`[ATTEMPT 1] Found ${allPapers.length} papers - sufficient!`);
+            break;
+        }
+    }
+
+    // ATTEMPT 2: If still insufficient, try remaining decomposed queries
+    if (allPapers.length < minResults) {
+        console.log(`[ATTEMPT 2] Only ${allPapers.length} papers found. Trying more variations...`);
+
+        for (const q of decomposedQueries.slice(4)) {
+            const papers = await searchSingleQuery(q, limitPerSource);
+            addPapers(papers);
+        }
+    }
+
+    // ATTEMPT 3: If still insufficient, broaden to core concepts only
+    if (allPapers.length < minResults) {
+        const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+        if (words.length >= 2) {
+            const broadQuery = `${words[0]} ${words[1]}`;
+            console.log(`[ATTEMPT 3] Broadening to core concepts: "${broadQuery}"`);
+
+            const papers = await searchSingleQuery(broadQuery, limitPerSource);
+            addPapers(papers);
+        }
+    }
+
+    // ATTEMPT 4: Cross-domain search (traditional finance terms)
+    if (allPapers.length < minResults) {
+        console.log(`[ATTEMPT 4] Cross-domain search with finance terms...`);
+        const financeQueries = [
+            'market contagion systemic risk',
+            'financial cascade deleveraging',
+            'margin call crisis'
+        ];
+
+        for (const fq of financeQueries) {
+            const papers = await searchSingleQuery(fq, 5);
+            addPapers(papers);
+        }
+    }
+
+    console.log(`[TIER 4] Total unique papers found: ${allPapers.length}`);
+
+    // Apply quality scoring and filtering
+    const scoredPapers = filterAndScorePapers(allPapers, 0.2);
+
+    // Sort by quality score, then by citations
+    scoredPapers.sort((a, b) => {
+        const qualityDiff = b.qualityScore - a.qualityScore;
+        if (Math.abs(qualityDiff) > 0.1) return qualityDiff;
+        return (b.citationCount || 0) - (a.citationCount || 0);
+    });
+
+    console.log(`[TIER 4] After quality filter: ${scoredPapers.length} papers`);
+
+    // Return top papers (cap at reasonable limit to avoid token overflow)
+    return scoredPapers.slice(0, 60);
 };
 
 /**
  * Format all papers for inclusion in LLM prompt
+ * Includes quality scores for transparency
  */
-export const formatPapersForPrompt = (papers: AcademicPaper[]): string => {
+export const formatPapersForPrompt = (papers: (AcademicPaper | ScoredPaper)[]): string => {
     if (papers.length === 0) {
-        return 'No academic papers found for this query.';
+        return `⚠️ WARNING: No academic papers found for this query.
+The search system attempted multiple query variations but could not locate relevant sources.
+Please generate analysis based on general knowledge, but clearly mark any claims as "Unverified - No Source".`;
     }
 
-    const formatted = papers.map((paper, i) => formatPaperForLLM(paper, i));
+    if (papers.length < 10) {
+        console.warn(`[TIER 5 WARNING] Only ${papers.length} papers found - below recommended minimum of 20`);
+    }
 
-    return `## Verified Academic Sources (${papers.length} papers)\n\n${formatted.join('\n\n')}`;
+    const formatted = papers.map((paper, i) => {
+        const scoredPaper = paper as ScoredPaper;
+        const qualityBadge = scoredPaper.qualityScore !== undefined
+            ? ` [Quality: ${(scoredPaper.qualityScore * 100).toFixed(0)}%]`
+            : '';
+        const verifiedBadge = scoredPaper.verified ? ' ✓' : '';
+
+        return formatPaperForLLM(paper, i) + qualityBadge + verifiedBadge;
+    });
+
+    // Calculate statistics
+    const withDoi = papers.filter(p => p.doi).length;
+    const avgCitations = Math.round(papers.reduce((sum, p) => sum + (p.citationCount || 0), 0) / papers.length);
+
+    return `## Verified Academic Sources (${papers.length} papers)
+### Source Statistics: ${withDoi}/${papers.length} have DOI | Avg Citations: ${avgCitations}
+
+${formatted.join('\n\n')}`;
 };

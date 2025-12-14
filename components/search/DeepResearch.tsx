@@ -20,7 +20,7 @@ import {
     Search,
     Quote
 } from 'lucide-react';
-import { searchAllAcademicSources, formatPapersForPrompt, AcademicPaper } from '../../services/academicSearch';
+import { searchAllAcademicSources, formatPapersForPrompt, AcademicPaper, ScoredPaper } from '../../services/academicSearch';
 import { loadSettings, runDialecticalAnalysis, sendToProvider, AIResponse } from '../../services/aiProviders';
 import { exportToPDF, exportToDOC, exportToBibTeX } from '../../services/exportService';
 import { shouldSuggestEnhancement, ENHANCEMENT_THRESHOLD } from '../../services/promptEnhancer';
@@ -210,7 +210,7 @@ const DeepResearch: React.FC = () => {
 
         // For Phase 1 batches (slr1-slr4), fetch REAL papers from academic APIs
         const isLiteraturePhase = ['slr1', 'slr2', 'slr3', 'slr4'].includes(phase.id);
-        let realPapers: AcademicPaper[] = [];
+        let realPapers: ScoredPaper[] = [];
         let papersContext = '';
 
         let currentSearchQuery = researchPrompt;
