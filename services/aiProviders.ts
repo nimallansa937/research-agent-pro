@@ -127,8 +127,8 @@ class GeminiProvider implements IAIProvider {
     }
 
     async sendMessage(message: string): Promise<string> {
-        // Use direct API URL with CORS proxy for production
-        const baseUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
+        // Use v1 API (not v1beta) for newer models
+        const baseUrl = `https://generativelanguage.googleapis.com/v1/models/${this.model}:generateContent?key=${this.apiKey}`;
         const endpoint = withCorsProxy(baseUrl);
 
         try {
