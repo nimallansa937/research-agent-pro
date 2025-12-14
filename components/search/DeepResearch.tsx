@@ -18,7 +18,8 @@ import {
     FileType,
     Cloud,
     Search,
-    Quote
+    Quote,
+    Zap
 } from 'lucide-react';
 import { searchAllAcademicSources, formatPapersForPrompt, AcademicPaper, ScoredPaper } from '../../services/academicSearch';
 import { loadSettings, runDialecticalAnalysis, sendToProvider, AIResponse } from '../../services/aiProviders';
@@ -27,6 +28,7 @@ import { shouldSuggestEnhancement, ENHANCEMENT_THRESHOLD } from '../../services/
 import { saveFileToDrive, isAuthenticated as isDriveAuthenticated, loadDriveSettings } from '../../services/googleDriveService';
 import { saveResearch, generateTitleFromPrompt, ResearchItem } from '../../services/researchHistoryService';
 import { runGoogleDeepResearch, DeepResearchStatus } from '../../services/googleDeepResearchService';
+import { isPythonAgentAvailable, searchWithPythonAgent, getFormattedOutput } from '../../services/pythonAgentService';
 import { useAuth } from '../../contexts/AuthContext';
 import ReportViewer from '../report/ReportViewer';
 import PromptEnhancementDialog from './PromptEnhancementDialog';
@@ -129,7 +131,17 @@ const DeepResearch: React.FC = () => {
     const [showAttachmentAnalysis, setShowAttachmentAnalysis] = useState(false);
     const [googleResearchStatus, setGoogleResearchStatus] = useState<string | null>(null);
     const [searchThemes, setSearchThemes] = useState<string[]>([]);
+    const [usePythonAgent, setUsePythonAgent] = useState(false);
+    const [pythonAgentAvailable, setPythonAgentAvailable] = useState(false);
     const outputRef = useRef<HTMLDivElement>(null);
+
+    // Check if Python Agent is available on mount
+    useEffect(() => {
+        isPythonAgentAvailable().then(available => {
+            setPythonAgentAvailable(available);
+            console.log(`Python Agent: ${available ? 'Available ✓' : 'Not running'}`);
+        });
+    }, []);
 
     // Generate 4 distinct search themes based on the research topic
     const generateSearchThemes = async (topic: string) => {
@@ -822,6 +834,23 @@ Examples:
                                     disabled={isRunning}
                                 />
                             </div>
+
+                            {/* Python Agent Toggle */}
+                            {pythonAgentAvailable && (
+                                <div className="mt-3 flex items-center gap-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                                    <Zap className="w-4 h-4 text-yellow-400" />
+                                    <span className="text-sm text-yellow-300">Python Agent Available</span>
+                                    <label className="ml-auto flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={usePythonAgent}
+                                            onChange={(e) => setUsePythonAgent(e.target.checked)}
+                                            className="w-4 h-4 rounded"
+                                        />
+                                        <span className="text-sm text-neutral-300">Use Enhanced NLP</span>
+                                    </label>
+                                </div>
+                            )}
 
                             <div className="flex gap-2 mt-3">
                                 {!isRunning ? (
